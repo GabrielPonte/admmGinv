@@ -1,22 +1,183 @@
-function append_to_plot!(P1,D1,It,primal_res,dual_res,iter)
-    primal_res <= 1e-15 ? primal_res = 1e-12 : primal_res
-    dual_res <= 1e-15 ? dual_res = 1e-12 : dual_res
-    push!(P1,primal_res)
-    push!(D1,dual_res)
-    push!(It,iter)
+function adaptive_admm(Θ,M,E,E_old,iter,rho)
+    if mod(iter,2) == 1
+        Θ += rho*(M-E_old)
+    else
+        Θ += rho*(M-E)
+    end
+    return rho,Λ
+end
+    if mod(k, Tf ) = 1 then
+        6: λˆ
+        k+1 = λk + τk(b − Auk+1 − Bvk)
+        7: Estimate spectral stepsizes ˆαk, βˆ
+        k in (27) (28)
+        8: Estimate correlations α
+        cor
+        k
+        , βcor
+        k
+        in (29)
+        9: Update τk+1 in (30)
+        10: k0 ← k
+
+
+function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-4,rho=3,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    V1,V1DinvU1T = ginvInit.V1,ginvInit.V1DinvU1T;
+    U1U1T,V2V2T = U1*U1',ginvInit.V2V2T;
+    Θ = (1/maximum(abs.(V1*U1')))*V1*U1'
+    n,m = size(Θ);r = size(U1,2)
+    rho_inv = 1/rho; 
+    iter=0; norm_V1DinvU1T = norm(V1DinvU1T);
+    primal_res,dual_res,opt_res = 0.0,0.0,0.0;
+    eps_p,eps_d = 0.0,0.0;
+    #Λ = rho_inv*Θ; 
+    E = ginvInit.V1DinvU1T+Θ;
+    E_old = E; H = Nothing;
+    E0 = copy(E);Θ0 = Θ;
+    # start admm
+    while true
+        # update Z where W := V2*J*U1' with J = (- V1DinvU1T + E - Λ)
+        W = V2V2T*(E - rho_inv*Θ)*U1U1T
+        # update H
+        H = V1DinvU1T + W
+        # update of E
+        E = closed_form1n(H + rho_inv*Θ,rho_inv)
+        # Compute residuals
+        res_infeas = H - E
+        # Update P
+        Θ += rho*res_infeas
+
+
+        # Stopping criteria
+        primal_res = norm(res_infeas)
+        if stop_limit == :Boyd
+            dual_res = rho*norm(V2'*(E-E_old)*U1)
+            eps_p = sqrt(n*m)*eps_abs + eps_rel*maximum([norm(E),norm(W),norm_V1DinvU1T])
+            eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*rho*norm(V2'*Λ*U1)
+            E_old = E
+        elseif stop_limit == :OptGap
+            dual_res = rho*norm(V2'*Λ*U1)
+            eps_p = eps_opt,eps_d = eps_opt
+        else
+            error("stop limit not defined correctly")
+        end
+        iter += 1
+        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (primal_res <= eps_p && dual_res <= eps_d)
+            opt_res = abs(getnorm1(H)-rho*tr(Λ'*V1DinvU1T))
+            break
+        end
+    end
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    admmsol.H = H;
+    admmsol.iter = iter;
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,rho*norm(V2'*Λ*U1),rho*norm(V2'*(E-E_old)*U1);
+    admmsol.res_opt = opt_res
+    admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
+    admmsol.z = getnorm1(admmsol.H);
+    return admmsol
 end
 
-function append_to_plot_extended!(primal_res1,primal_res2,dual_res1,dual_res2,iter)
-    primal_res1 <= 1e-15 ? primal_res1 = 1e-12 : primal_res1
-    primal_res2 <= 1e-15 ? primal_res2 = 1e-12 : primal_res2
-    dual_res1 <= 1e-15 ? dual_res1 = 1e-12 : dual_res1
-    dual_res2 <= 1e-15 ? dual_res2 = 1e-12 : dual_res2
-    push!(P1,primal_res1)
-    push!(P2,primal_res2)
-    push!(D1,dual_res1)
-    push!(D2,dual_res2)
-    push!(It,iter)
+
+function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rho=1,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    V1,V1Dinv = ginvInit.V1,ginvInit.V1Dinv;
+    V2V2T = ginvInit.V2V2T;
+    Θ = (1/maximum(norm.(eachrow(V1))))*V1;
+    n,r = size(Θ);
+    rho_inv = 1/rho;
+    iter=0; norm_V1Dinv = norm(V1Dinv);
+    primal_res,dual_res,opt_res = 0.0,0.0,0.0;
+    eps_p,eps_d = 0.0,0.0;
+    Λ = rho_inv*Θ; E = ginvInit.V1Dinv+Λ; 
+    E_old = E; M = Nothing;
+    # start admm
+    while true
+        # update Z where W := V2*J with J = (- V1DinvU1T + E - Λ)
+        W = V2V2T*(E - Λ)
+        # update of E
+        M = V1Dinv + W
+        E = closed_form21n(M + Λ,rho_inv)
+        # Compute residuals
+        res_infeas = M - E
+        # Update P
+        Λ += res_infeas
+        # Stopping criteria
+        primal_res = norm(res_infeas)
+        if stop_limit == :Boyd
+            dual_res = rho*norm(V2'*(E-E_old))
+            eps_p = sqrt(n*r)*eps_abs + eps_rel*maximum([norm(E),norm(W),norm_V1Dinv])
+            eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*rho*norm(V2'*Λ)
+            E_old = E
+        elseif stop_limit == :OptGap
+            dual_res = rho*norm(V2'*Λ)
+            eps_p = eps_opt,eps_d = eps_opt
+        else
+            error("stop limit not defined correctly")
+        end
+        iter += 1
+        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (primal_res <= eps_p && dual_res <= eps_d)
+            opt_res = abs(getnorm1(M)-rho*tr(Λ'*V1Dinv))
+            break
+        end
+    end
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    admmsol.H = M*U1';
+    admmsol.iter = iter;
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,rho*norm(V2'*Λ),rho*norm(V2'*(E-E_old));
+    admmsol.res_opt = opt_res
+    admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
+    admmsol.z = getnorm21(admmsol.H);
+    return admmsol
 end
+
+function admm20norm(ginvInit::GinvInit,ω21::Float64,nzr21::Int64;rho=1,max_iter=1e5,time_limit=7200)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    V1Dinv = ginvInit.V1Dinv;
+    V2V2T = ginvInit.V2V2T;
+    #@show typeof(V1Dinv)
+    n,r = size(V1Dinv);
+    Φ,B = zeros(n,r),V1Dinv
+    rho_inv = 1/rho; iter=0; M = Nothing;
+    nzr_target = floor(Int64,(1-ω21)*nzr21 + ω21*r)
+    # start admm
+    while true
+        # update Z where W := V2*J with J = (- V1DinvU1T + E - Λ)
+        W = V2V2T*(B - Φ)
+        # update of B
+        M = V1Dinv + W
+        B = closed_form20n(M + Φ,nzr_target)
+        # Update P
+        Φ += (M - B)
+        # Stopping criteria
+        iter += 1
+        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (getnorm20(M,1e-5) <= nzr_target)
+            break
+        end
+    end
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    admmsol.H = M*U1';
+    admmsol.iter = iter;
+    admmsol.z = getnorm21(admmsol.H);
+    return admmsol
+end
+
+
+
+
+
 
 function runADMM1n(G,V2,U1,Θ,TP::Symbol,PLT::Bool)
     # initial params
@@ -41,17 +202,14 @@ function runADMM1n(G,V2,U1,Θ,TP::Symbol,PLT::Bool)
         
     end
     while true
-        # update Z where W := V2*Z*U1'
-        # J = (- G + E - Λ)
-        J = (E - Λ)
-        W = V2V2T*J*U1U1T
-        # W2 = subprobZ(n,r,J,U1,V2)
-        # @show norm(W2-W)
-        # flush(stdout)
-        # Update E
+        # update Z where W := V2*Z*U1' with J = (- G + E - Λ)
+        W = V2V2T*(E - Λ)*U1U1T
+        # update E
         GW = G + W
         Y = GW + Λ
-        E = sign.(Y).*max.(abs.(Y) .- (rho_inv), 0)
+        # update of E
+        E = closed_form1n(Y,rho_inv)
+        #E = sign.(Y).*max.(abs.(Y) .- (rho_inv), 0)
         # E2 = subprobE(n,Y,rho)
         # @show norm(E2-E)
         # flush(stdout)
@@ -128,11 +286,11 @@ function runADMM21n(V1Dinv,V2,U1,Θ,TP::Symbol,PLT::Bool)
     while true
         V1DinvΛ = V1Dinv + Λ
         # update Z where W := V2*Z
-        W  = V2V2T*(-V1DinvΛ + E)
+        W  = V2V2T*(E-Λ)
         # update E
         Y = V1DinvΛ + W
-        E = zeros(n,r)
-        norm_rows_y = norm.(eachrow(Y))
+        E = closed_form21n(Y,rho_inv)
+        
         for (i,el) in enumerate(norm_rows_y)
             if rho_inv < el
                 E[i,:] = ((el - rho_inv)/el) * Y[i,:]

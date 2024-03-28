@@ -6,11 +6,41 @@ mutable struct GinvInst
 end
 
 mutable struct GinvInit
-    Ur::Matrix{Float64}
-    Vr::Matrix{Float64}
-    Vs::Matrix{Float64}
-    G::Matrix{Float64}
+    U1::Matrix{Float64}
+    V1::Matrix{Float64}
+    V2::Matrix{Float64}
     Dinv::Vector{Float64}
+    V1Dinv::Matrix{Float64}
+    V1DinvU1T::Matrix{Float64}
+    V2V2T::Matrix{Float64}
+end
+
+mutable struct GinvADMM1
+    U1::Matrix{Float64}
+    V2::Matrix{Float64}
+    Θ::Matrix{Float64}
+    V1DinvU1T::Matrix{Float64}
+    U1U1T::Matrix{Float64}
+    V2V2T::Matrix{Float64}
+    TP::Symbol
+end
+
+mutable struct GinvADMM21
+    U1::Matrix{Float64}
+    V2::Matrix{Float64}
+    Θ::Matrix{Float64}
+    V1Dinv::Matrix{Float64}
+    V2V2T::Matrix{Float64}
+    TP::Symbol
+end
+
+mutable struct GinvADMM20
+    U1::Matrix{Float64}
+    V2::Matrix{Float64}
+    V1Dinv::Matrix{Float64}
+    V2V2T::Matrix{Float64}
+    nzr21::Int64
+    ω21::Float64
 end
 
 mutable struct SolutionOptimizer
@@ -181,4 +211,22 @@ mutable struct GinvResultExtendedADMM
         bool_p1,bool_p2,bool_p3,bool_p4,
         p1,p2,p3,p4
     )
+end
+
+mutable struct GinvADMMInfoIterations
+    Iter::Vector{Float64}
+    Norm0::Vector{Float64}
+    Norm1::Vector{Float64}
+    Norm20::Vector{Float64}
+    Norm21::Vector{Float64}
+    Pres::Vector{Float64}
+    Dres::Vector{Float64}
+
+    GinvADMMInfoIterations() = new()
+end
+
+mutable struct OptionsADMM
+    eps::Float64
+    max_iter::Float64
+    time_limit::Float64
 end
