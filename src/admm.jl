@@ -1,85 +1,130 @@
-function adaptive_admm(Θ,M,E,E_old,iter,rho)
-    if mod(iter,2) == 1
-        Θ += rho*(M-E_old)
-    else
-        Θ += rho*(M-E)
-    end
-    return rho,Λ
-end
-    if mod(k, Tf ) = 1 then
-        6: λˆ
-        k+1 = λk + τk(b − Auk+1 − Bvk)
-        7: Estimate spectral stepsizes ˆαk, βˆ
-        k in (27) (28)
-        8: Estimate correlations α
-        cor
-        k
-        , βcor
-        k
-        in (29)
-        9: Update τk+1 in (30)
-        10: k0 ← k
-
-
-function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-4,rho=3,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
+function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-4,rho=1e-1,max_iter=1e3,time_limit=7200,stop_limit=:Boyd,aadmm=true)
     # initialize timer
     time_start = time_ns()
     # initialize parameters
+    rho_inv = 1/rho; 
     U1,V2 = ginvInit.U1,ginvInit.V2;
     V1,V1DinvU1T = ginvInit.V1,ginvInit.V1DinvU1T;
     U1U1T,V2V2T = U1*U1',ginvInit.V2V2T;
-    Θ = (1/maximum(abs.(V1*U1')))*V1*U1'
-    n,m = size(Θ);r = size(U1,2)
-    rho_inv = 1/rho; 
-    iter=0; norm_V1DinvU1T = norm(V1DinvU1T);
+
+    Θ0 = (1/maximum(abs.(V1*U1')))*V1*U1'
+    Θ1 = copy(Θ0); 
+
+    E0 = V1DinvU1T + Θ0; 
+    E1 = copy(E0); 
+
+
+    W0 = V2V2T*(E0 - rho_inv*Θ0)*U1U1T; 
+    W1 = copy(W0);
+    
+    E = Nothing
+    H = Nothing; 
+    Θ = Nothing;
+    Θ_hat0 = Nothing;
+    Θ_hat1 = Nothing; 
+
+    n,m = size(Θ0);r = size(U1,2)
+    
+    iter=1; norm_V1DinvU1T = norm(V1DinvU1T);
     primal_res,dual_res,opt_res = 0.0,0.0,0.0;
     eps_p,eps_d = 0.0,0.0;
-    #Λ = rho_inv*Θ; 
-    E = ginvInit.V1DinvU1T+Θ;
-    E_old = E; H = Nothing;
-    E0 = copy(E);Θ0 = Θ;
+
+    pres = []; dres = []; mres = [];
+    rhos = [rho]; objs = []; tols = [];
+
+    #Λ = rho_inv*Θ;
+    freq = 2;
+    minval = 1e-20;
+    orthval = max(0.2, minval);
+    tol = 1e-3; siter = 1; eiter = 1e5;
+
     # start admm
     while true
+        rho_inv = 1/rho;
         # update Z where W := V2*J*U1' with J = (- V1DinvU1T + E - Λ)
-        W = V2V2T*(E - rho_inv*Θ)*U1U1T
+        W = V2V2T*(E1 - rho_inv*Θ1)*U1U1T
         # update H
         H = V1DinvU1T + W
         # update of E
-        E = closed_form1n(H + rho_inv*Θ,rho_inv)
+        E = closed_form1n(H + rho_inv*Θ1,rho_inv)
         # Compute residuals
-        res_infeas = H - E
-        # Update P
-        Θ += rho*res_infeas
-
+        pres1 = H - E;
+        dres1 = V2'*(E-E1)*U1;
+        # Update lagrangian variable
+        Θ = Θ1 + rho*pres1;
 
         # Stopping criteria
-        primal_res = norm(res_infeas)
-        if stop_limit == :Boyd
-            dual_res = rho*norm(V2'*(E-E_old)*U1)
-            eps_p = sqrt(n*m)*eps_abs + eps_rel*maximum([norm(E),norm(W),norm_V1DinvU1T])
-            eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*rho*norm(V2'*Λ*U1)
-            E_old = E
-        elseif stop_limit == :OptGap
-            dual_res = rho*norm(V2'*Λ*U1)
-            eps_p = eps_opt,eps_d = eps_opt
-        else
-            error("stop limit not defined correctly")
-        end
-        iter += 1
-        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (primal_res <= eps_p && dual_res <= eps_d)
-            opt_res = abs(getnorm1(H)-rho*tr(Λ'*V1DinvU1T))
+        push!(pres,norm(pres1)); push!(dres,rho*norm(dres1)); 
+        push!(mres,rho*pres[iter]^2+rho*norm(E-E1)^2);
+        push!(objs,getnorm1(H));
+
+        pres_norm = pres[iter]/max(norm(E),norm(W),norm_V1DinvU1T);
+        dres_norm = dres[iter]/norm(V2'*Θ*U1);
+        push!(tols,max(pres_norm, dres_norm));
+
+        if tols[iter] < tol || iter == max_iter
+            opt_res = abs(getnorm1(H)-tr(Θ'*V1DinvU1T))
             break
         end
+
+        if iter == 1
+            Θ0 = deepcopy(Θ);
+            Θ_hat0 = Θ1 + rho*(H-E1);
+            E0 = deepcopy(E);
+            W0 = deepcopy(W);
+        elseif mod(iter,freq)==0 && iter>siter && iter < eiter
+            Θ_hat = Θ1 + rho*(H-E1);
+            rho = adaptive_update(rho,W,W0,Θ_hat,Θ_hat0,E,E0,Θ,Θ0,orthval,minval)
+            # record for next estimation
+            Θ0 = deepcopy(Θ);
+            Θ_hat0 = deepcopy(Θ_hat);
+            E0 = deepcopy(E);
+            W0 = deepcopy(W);
+        end
+        #@show typeof(H),rho,iter
+        push!(rhos,rho);
+        E1 = deepcopy(E); Θ1 = deepcopy(Θ);iter += 1;
+        #eps_p = sqrt(n*m)*eps_abs + eps_rel*maximum([norm(E),norm(W),norm_V1DinvU1T])
+        #eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*norm(V2'*Θ*U1)
+
+
+        # primal_res = norm(pres1)
+        # if stop_limit == :Boyd
+        #     dual_res = rho*norm(V2'*(E-E_old)*U1)
+        #     eps_p = sqrt(n*m)*eps_abs + eps_rel*maximum([norm(E),norm(W),norm_V1DinvU1T])
+        #     eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*norm(V2'*Θ*U1)
+        # elseif stop_limit == :OptGap
+        #     dual_res = norm(V2'*Θ*U1)
+        #     eps_p = eps_opt,eps_d = eps_opt
+        # else
+        #     error("stop limit not defined correctly")
+        # end
+
+        # iter += 1
+        # if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (primal_res <= eps_p && dual_res <= eps_d)
+        #     opt_res = abs(getnorm1(H)-tr(Θ'*V1DinvU1T))
+        #     break
+        # end
+        # if iter == 1
+        #     Θ0 = Θ;
+        #     Θ_hat0 = l1 + tau*(b-Au-Bv1);
+            
+            #mod(iter,2) == 1
+            #W0 = copy(W_old); E0 = copy(E_old);
+        #end
+        #    W_old = copy(W); E_old = copy(E);
     end
+    #plot(collect(1:length(tols)),tols)
+    #plot(collect(1:length(objs)),objs)
     admmsol = SolutionADMM();
     admmsol.time = (time_ns() - time_start)/1e9;
     admmsol.H = H;
     admmsol.iter = iter;
-    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,rho*norm(V2'*Λ*U1),rho*norm(V2'*(E-E_old)*U1);
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,norm(V2'*Θ*U1),rho*norm(V2'*(E-E1)*U1);
     admmsol.res_opt = opt_res
     admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
     admmsol.z = getnorm1(admmsol.H);
-    return admmsol
+    return admmsol,pres,dres,tols,objs,rhos
 end
 
 
