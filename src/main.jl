@@ -40,7 +40,7 @@ for m1 in [1000]
     inst = GinvInst(A,m,n,r);
     # Initialization
     ginvInit = getInitialInfoGinv(inst)
-    time_admm_1 = @elapsed admmsol_1,pres,dres,tols,objs,rhos = admm1norm(ginvInit);#runADMM1n(G,V2,U1,Λ1,TP,false);
+    time_admm_1 = @elapsed admmsol_1,pres,dres,tols,objs,rhos = admm1norm(ginvInit;adp=3);#runADMM1n(G,V2,U1,Λ1,TP,false);
     admmsol_1.z = getnorm1(admmsol_1.H);
     admmsol_1.time = time_admm_1;
     admmres_1 = getResultsADMM(inst,admmsol_1);
@@ -103,9 +103,9 @@ end
 
 # plot(It,[P1,P2,D1,D2],labels=[L"\mathcal{P}_E" L"\mathcal{P}_B" L"\mathcal{D}_E" L"\mathcal{D}_B"], xlabel = L"k" ,ylabel="residual",yaxis=:log, yticks =  10.0.^(5:-1:-15))
 
-# y_vals = rhos
-# y_vals = pres
 y_vals = rhos
+# y_vals = pres
+# y_vals = dres
 x_vals = collect(1:length(y_vals))
 
 plot(

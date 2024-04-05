@@ -1,4 +1,4 @@
-function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-4,rho=1e-1,max_iter=1e3,time_limit=7200,stop_limit=:Boyd,aadmm=true)
+function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-4,rho=1e0,max_iter=1e3,time_limit=7200,stop_limit=:Boyd,adp=1)
     # initialize timer
     time_start = time_ns()
     # initialize parameters
@@ -33,9 +33,16 @@ function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-4,rho
     rhos = [rho]; objs = []; tols = [];
 
     #Λ = rho_inv*Θ;
+    # Fast ADMM, Nestorov
+    restart = 0.999;
+    alpha1 = 1;
+    # Residual balancing
+    bs = 2; rs = 0.1;
+    # Spectral
     freq = 2;
     minval = 1e-20;
     orthval = max(0.2, minval);
+
     tol = 1e-3; siter = 1; eiter = 1e5;
 
     # start admm
@@ -67,52 +74,64 @@ function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-4,rho
             break
         end
 
-        if iter == 1
-            Θ0 = deepcopy(Θ);
-            Θ_hat0 = Θ1 + rho*(H-E1);
-            E0 = deepcopy(E);
-            W0 = deepcopy(W);
-        elseif mod(iter,freq)==0 && iter>siter && iter < eiter
-            Θ_hat = Θ1 + rho*(H-E1);
-            rho = adaptive_update(rho,W,W0,Θ_hat,Θ_hat0,E,E0,Θ,Θ0,orthval,minval)
-            # record for next estimation
-            Θ0 = deepcopy(Θ);
-            Θ_hat0 = deepcopy(Θ_hat);
-            E0 = deepcopy(E);
-            W0 = deepcopy(W);
+        if adp == 2 # Fast ADMM, Nesterov with restart
+
+            if iter == 1 || mres[iter] < restart*mres[iter-1]
+                alpha = (1+sqrt(1+4*alpha1^2))/2;
+                E1 = E + (alpha1-1)/alpha*(E-E0);
+                Θ1 = Θ + (alpha1-1)/alpha*(Θ-Θ0);
+                alpha1 = alpha;
+                E0 = deepcopy(E);
+                Θ0 = deepcopy(Θ);
+                E1 = deepcopy(E); #previous Bv
+            else
+                alpha = 1; alpha1 = 1;
+                E1 = deepcopy(E0);
+                Θ1 = deepcopy(Θ0);
+                pres[iter] = pres[iter-1];
+                dres[iter] = dres[iter-1];
+                mres[iter] = mres[iter-1];
+            end
+
+        elseif adp == 3 # Residual balancing
+
+            if iter>siter && iter < eiter
+                if dres[iter] < pres[iter] * rs #dual residual is smaller, need large rho
+                    rho = bs * rho;
+                elseif pres[iter] < dres[iter] * rs #primal residual is smaller, need small rho
+                    rho = rho/bs;
+                end
+            end 
+
+        elseif adp == 4 # Normalized residual balancing
+
+            if iter>siter && iter < eiter
+                if dres_norm < pres_norm * rs #dual residual is smaller, need large rho
+                    rho = bs * rho;
+                elseif pres_norm < dres_norm * rs #primal residual is smaller, need small rho
+                    rho = rho/bs;
+                end
+            end 
+            
+        elseif adp == 5  # Spectral penalty
+            if iter == 1
+                Θ0 = deepcopy(Θ);
+                Θ_hat0 = Θ1 + rho*(H-E1);
+                E0 = deepcopy(E);
+                W0 = deepcopy(W);
+            elseif mod(iter,freq)==0 && iter>siter && iter < eiter
+                Θ_hat = Θ1 + rho*(H-E1);
+                rho = adaptive_update(rho,W,W0,Θ_hat,Θ_hat0,E,E0,Θ,Θ0,orthval,minval)
+                # record for next estimation
+                Θ0 = deepcopy(Θ);
+                Θ_hat0 = deepcopy(Θ_hat);
+                E0 = deepcopy(E);
+                W0 = deepcopy(W);
+            end
         end
-        #@show typeof(H),rho,iter
         push!(rhos,rho);
         E1 = deepcopy(E); Θ1 = deepcopy(Θ);iter += 1;
-        #eps_p = sqrt(n*m)*eps_abs + eps_rel*maximum([norm(E),norm(W),norm_V1DinvU1T])
-        #eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*norm(V2'*Θ*U1)
 
-
-        # primal_res = norm(pres1)
-        # if stop_limit == :Boyd
-        #     dual_res = rho*norm(V2'*(E-E_old)*U1)
-        #     eps_p = sqrt(n*m)*eps_abs + eps_rel*maximum([norm(E),norm(W),norm_V1DinvU1T])
-        #     eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*norm(V2'*Θ*U1)
-        # elseif stop_limit == :OptGap
-        #     dual_res = norm(V2'*Θ*U1)
-        #     eps_p = eps_opt,eps_d = eps_opt
-        # else
-        #     error("stop limit not defined correctly")
-        # end
-
-        # iter += 1
-        # if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (primal_res <= eps_p && dual_res <= eps_d)
-        #     opt_res = abs(getnorm1(H)-tr(Θ'*V1DinvU1T))
-        #     break
-        # end
-        # if iter == 1
-        #     Θ0 = Θ;
-        #     Θ_hat0 = l1 + tau*(b-Au-Bv1);
-            
-            #mod(iter,2) == 1
-            #W0 = copy(W_old); E0 = copy(E_old);
-        #end
-        #    W_old = copy(W); E_old = copy(E);
     end
     #plot(collect(1:length(tols)),tols)
     #plot(collect(1:length(objs)),objs)
