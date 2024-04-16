@@ -6,17 +6,10 @@ mutable struct GinvInst
 end
 
 mutable struct GinvInit
-<<<<<<< Updated upstream
-    Ur::Matrix{Float64}
-    Vr::Matrix{Float64}
-    Vs::Matrix{Float64}
-    G::Matrix{Float64}
-=======
     U1::Matrix{Float64}
     U2::Matrix{Float64}
     V1::Matrix{Float64}
     V2::Matrix{Float64}
->>>>>>> Stashed changes
     Dinv::Vector{Float64}
 end
 

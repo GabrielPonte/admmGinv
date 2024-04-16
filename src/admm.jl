@@ -1,23 +1,3 @@
-<<<<<<< Updated upstream
-function append_to_plot!(P1,D1,It,primal_res,dual_res,iter)
-    primal_res <= 1e-15 ? primal_res = 1e-12 : primal_res
-    dual_res <= 1e-15 ? dual_res = 1e-12 : dual_res
-    push!(P1,primal_res)
-    push!(D1,dual_res)
-    push!(It,iter)
-end
-
-function append_to_plot_extended!(primal_res1,primal_res2,dual_res1,dual_res2,iter)
-    primal_res1 <= 1e-15 ? primal_res1 = 1e-12 : primal_res1
-    primal_res2 <= 1e-15 ? primal_res2 = 1e-12 : primal_res2
-    dual_res1 <= 1e-15 ? dual_res1 = 1e-12 : dual_res1
-    dual_res2 <= 1e-15 ? dual_res2 = 1e-12 : dual_res2
-    push!(P1,primal_res1)
-    push!(P2,primal_res2)
-    push!(D1,dual_res1)
-    push!(D2,dual_res2)
-    push!(It,iter)
-=======
 # function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-4,rho=3.0,max_iter=1e4,time_limit=7200,stop_limit=:Boyd,adp=1)
 #     # initialize timer
 #     time_start = time_ns()
@@ -307,7 +287,6 @@ function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rh
     admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
     admmsol.z = getnorm21(admmsol.H);
     return admmsol
->>>>>>> Stashed changes
 end
 
 function runADMM1n(G,V2,U1,Θ,TP::Symbol,PLT::Bool)
