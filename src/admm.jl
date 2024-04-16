@@ -1,151 +1,216 @@
-function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-4,rho=1e0,max_iter=1e3,time_limit=7200,stop_limit=:Boyd,adp=1)
+# function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-4,rho=1e0,max_iter=1e3,time_limit=7200,stop_limit=:Boyd,adp=1)
+#     # initialize timer
+#     time_start = time_ns()
+#     # initialize parameters
+#     rho_inv = 1/rho; 
+#     U1,V2 = ginvInit.U1,ginvInit.V2;
+#     V1,V1DinvU1T = ginvInit.V1,ginvInit.V1DinvU1T;
+#     U1U1T,V2V2T = U1*U1',ginvInit.V2V2T;
+
+#     Θ0 = (1/maximum(abs.(V1*U1')))*V1*U1'
+#     Θ1 = copy(Θ0); 
+
+#     E0 = V1DinvU1T + Θ0; 
+#     E1 = copy(E0); 
+
+
+#     W0 = V2V2T*(E0 - rho_inv*Θ0)*U1U1T; 
+#     W1 = copy(W0);
+    
+#     E = Nothing
+#     H = Nothing; 
+#     Θ = Nothing;
+#     Θ_hat0 = Nothing;
+#     Θ_hat1 = Nothing; 
+
+#     n,m = size(Θ0);r = size(U1,2)
+    
+#     iter=1; norm_V1DinvU1T = norm(V1DinvU1T);
+#     primal_res,dual_res,opt_res = 0.0,0.0,0.0;
+#     eps_p,eps_d = 0.0,0.0;
+
+#     pres = []; dres = []; mres = [];
+#     rhos = [rho]; objs = []; tols = [];
+
+#     #Λ = rho_inv*Θ;
+#     # Fast ADMM, Nestorov
+#     restart = 0.999;
+#     alpha1 = 1;
+#     # Residual balancing
+#     bs = 2; rs = 0.1;
+#     # Spectral
+#     freq = 2;
+#     minval = 1e-20;
+#     orthval = max(0.2, minval);
+
+#     tol = 1e-3; siter = 1; eiter = 1e5;
+
+#     # start admm
+#     while true
+#         rho_inv = 1/rho;
+#         # update Z where W := V2*J*U1' with J = (- V1DinvU1T + E - Λ)
+#         W = V2V2T*(E1 - rho_inv*Θ1)*U1U1T
+#         # update H
+#         H = V1DinvU1T + W
+#         # update of E
+#         E = closed_form1n(H + rho_inv*Θ1,rho_inv)
+#         # Compute residuals
+#         pres1 = H - E;
+#         dres1 = V2'*(E-E1)*U1;
+#         # Update lagrangian variable
+#         Θ = Θ1 + rho*pres1;
+
+#         # Stopping criteria
+#         push!(pres,norm(pres1)); push!(dres,rho*norm(dres1)); 
+#         push!(mres,rho*pres[iter]^2+rho*norm(E-E1)^2);
+#         push!(objs,getnorm1(H));
+
+#         pres_norm = pres[iter]/max(norm(E),norm(W),norm_V1DinvU1T);
+#         dres_norm = dres[iter]/norm(V2'*Θ*U1);
+#         push!(tols,max(pres_norm, dres_norm));
+
+#         if tols[iter] < tol || iter == max_iter
+#             opt_res = abs(getnorm1(H)-tr(Θ'*V1DinvU1T))
+#             break
+#         end
+
+#         if adp == 2 # Fast ADMM, Nesterov with restart
+
+#             if iter == 1 || mres[iter] < restart*mres[iter-1]
+#                 alpha = (1+sqrt(1+4*alpha1^2))/2;
+#                 E1 = E + (alpha1-1)/alpha*(E-E0);
+#                 Θ1 = Θ + (alpha1-1)/alpha*(Θ-Θ0);
+#                 alpha1 = alpha;
+#                 E0 = deepcopy(E);
+#                 Θ0 = deepcopy(Θ);
+#                 E1 = deepcopy(E); #previous Bv
+#             else
+#                 alpha = 1; alpha1 = 1;
+#                 E1 = deepcopy(E0);
+#                 Θ1 = deepcopy(Θ0);
+#                 pres[iter] = pres[iter-1];
+#                 dres[iter] = dres[iter-1];
+#                 mres[iter] = mres[iter-1];
+#             end
+
+#         elseif adp == 3 # Residual balancing
+
+#             if iter>siter && iter < eiter
+#                 if dres[iter] < pres[iter] * rs #dual residual is smaller, need large rho
+#                     rho = bs * rho;
+#                 elseif pres[iter] < dres[iter] * rs #primal residual is smaller, need small rho
+#                     rho = rho/bs;
+#                 end
+#             end 
+
+#         elseif adp == 4 # Normalized residual balancing
+
+#             if iter>siter && iter < eiter
+#                 if dres_norm < pres_norm * rs #dual residual is smaller, need large rho
+#                     rho = bs * rho;
+#                 elseif pres_norm < dres_norm * rs #primal residual is smaller, need small rho
+#                     rho = rho/bs;
+#                 end
+#             end 
+            
+#         elseif adp == 5  # Spectral penalty
+#             if iter == 1
+#                 Θ0 = deepcopy(Θ);
+#                 Θ_hat0 = Θ1 + rho*(H-E1);
+#                 E0 = deepcopy(E);
+#                 W0 = deepcopy(W);
+#             elseif mod(iter,freq)==0 && iter>siter && iter < eiter
+#                 Θ_hat = Θ1 + rho*(H-E1);
+#                 rho = adaptive_update(rho,W,W0,Θ_hat,Θ_hat0,E,E0,Θ,Θ0,orthval,minval)
+#                 # record for next estimation
+#                 Θ0 = deepcopy(Θ);
+#                 Θ_hat0 = deepcopy(Θ_hat);
+#                 E0 = deepcopy(E);
+#                 W0 = deepcopy(W);
+#             end
+#         end
+#         push!(rhos,rho);
+#         E1 = deepcopy(E); Θ1 = deepcopy(Θ);iter += 1;
+
+#     end
+#     #plot(collect(1:length(tols)),tols)
+#     #plot(collect(1:length(objs)),objs)
+#     admmsol = SolutionADMM();
+#     admmsol.time = (time_ns() - time_start)/1e9;
+#     admmsol.H = H;
+#     admmsol.iter = iter;
+#     admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,norm(V2'*Θ*U1),rho*norm(V2'*(E-E1)*U1);
+#     admmsol.res_opt = opt_res
+#     admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
+#     admmsol.z = getnorm1(admmsol.H);
+#     return admmsol,pres,dres,tols,objs,rhos
+# end
+
+
+function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho=3,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
     # initialize timer
     time_start = time_ns()
     # initialize parameters
-    rho_inv = 1/rho; 
     U1,V2 = ginvInit.U1,ginvInit.V2;
     V1,V1DinvU1T = ginvInit.V1,ginvInit.V1DinvU1T;
-    U1U1T,V2V2T = U1*U1',ginvInit.V2V2T;
-
-    Θ0 = (1/maximum(abs.(V1*U1')))*V1*U1'
-    Θ1 = copy(Θ0); 
-
-    E0 = V1DinvU1T + Θ0; 
-    E1 = copy(E0); 
-
-
-    W0 = V2V2T*(E0 - rho_inv*Θ0)*U1U1T; 
-    W1 = copy(W0);
-    
-    E = Nothing
-    H = Nothing; 
-    Θ = Nothing;
-    Θ_hat0 = Nothing;
-    Θ_hat1 = Nothing; 
-
-    n,m = size(Θ0);r = size(U1,2)
-    
-    iter=1; norm_V1DinvU1T = norm(V1DinvU1T);
+    V2V2T = ginvInit.V2V2T;
+    V1U1T,U1U1T = V1*U1',U1*U1';
+    # Θ  = (1/maximum(abs.(V1U1T)))*V1U1T
+    Θ = (1/norm(V1U1T,Inf))*V1U1T;
+    m,r = size(U1)
+    n  = size(V2,1)
+    rho_inv = 1/rho;
+    iter=0; norm_V1DinvU1T = norm(V1DinvU1T);
     primal_res,dual_res,opt_res = 0.0,0.0,0.0;
     eps_p,eps_d = 0.0,0.0;
-
-    pres = []; dres = []; mres = [];
-    rhos = [rho]; objs = []; tols = [];
-
-    #Λ = rho_inv*Θ;
-    # Fast ADMM, Nestorov
-    restart = 0.999;
-    alpha1 = 1;
-    # Residual balancing
-    bs = 2; rs = 0.1;
-    # Spectral
-    freq = 2;
-    minval = 1e-20;
-    orthval = max(0.2, minval);
-
-    tol = 1e-3; siter = 1; eiter = 1e5;
-
-    # start admm
+    Λ = rho_inv*Θ; E = V1DinvU1T + Λ; 
+    E_old = E; H = Nothing;
     while true
-        rho_inv = 1/rho;
-        # update Z where W := V2*J*U1' with J = (- V1DinvU1T + E - Λ)
-        W = V2V2T*(E1 - rho_inv*Θ1)*U1U1T
-        # update H
+        # update Z where W := V2*Z*U1' with J = (- G + E - Λ)
+        W = V2V2T*(E - Λ)*U1U1T
+        # update E
         H = V1DinvU1T + W
         # update of E
-        E = closed_form1n(H + rho_inv*Θ1,rho_inv)
+        E = closed_form1n(H + Λ,rho_inv)
         # Compute residuals
-        pres1 = H - E;
-        dres1 = V2'*(E-E1)*U1;
-        # Update lagrangian variable
-        Θ = Θ1 + rho*pres1;
-
+        res_infeas = H - E
+        primal_res = norm(res_infeas)
+        dual_res = rho*norm(V2'*(E-E_old)*U1)
+        # Update P
+        Λ += res_infeas
         # Stopping criteria
-        push!(pres,norm(pres1)); push!(dres,rho*norm(dres1)); 
-        push!(mres,rho*pres[iter]^2+rho*norm(E-E1)^2);
-        push!(objs,getnorm1(H));
-
-        pres_norm = pres[iter]/max(norm(E),norm(W),norm_V1DinvU1T);
-        dres_norm = dres[iter]/norm(V2'*Θ*U1);
-        push!(tols,max(pres_norm, dres_norm));
-
-        if tols[iter] < tol || iter == max_iter
-            opt_res = abs(getnorm1(H)-tr(Θ'*V1DinvU1T))
+        if stop_limit == :Boyd
+            eps_p = sqrt(n*m)*eps_abs + eps_rel*maximum([norm(E),norm(W),norm_V1DinvU1T])
+            eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*rho*norm(V2'*Λ*U1)
+        elseif stop_limit == :OptGap
+            dual_res = rho*norm(V2'*Λ*U1)
+            eps_p = eps_opt;eps_d = eps_opt
+        else
+            error("stop limit not defined correctly")
+        end
+        iter += 1
+        if iter == max_iter || ((time_ns() - time_start)/1e9) >= 7200
             break
         end
-
-        if adp == 2 # Fast ADMM, Nesterov with restart
-
-            if iter == 1 || mres[iter] < restart*mres[iter-1]
-                alpha = (1+sqrt(1+4*alpha1^2))/2;
-                E1 = E + (alpha1-1)/alpha*(E-E0);
-                Θ1 = Θ + (alpha1-1)/alpha*(Θ-Θ0);
-                alpha1 = alpha;
-                E0 = deepcopy(E);
-                Θ0 = deepcopy(Θ);
-                E1 = deepcopy(E); #previous Bv
-            else
-                alpha = 1; alpha1 = 1;
-                E1 = deepcopy(E0);
-                Θ1 = deepcopy(Θ0);
-                pres[iter] = pres[iter-1];
-                dres[iter] = dres[iter-1];
-                mres[iter] = mres[iter-1];
-            end
-
-        elseif adp == 3 # Residual balancing
-
-            if iter>siter && iter < eiter
-                if dres[iter] < pres[iter] * rs #dual residual is smaller, need large rho
-                    rho = bs * rho;
-                elseif pres[iter] < dres[iter] * rs #primal residual is smaller, need small rho
-                    rho = rho/bs;
-                end
-            end 
-
-        elseif adp == 4 # Normalized residual balancing
-
-            if iter>siter && iter < eiter
-                if dres_norm < pres_norm * rs #dual residual is smaller, need large rho
-                    rho = bs * rho;
-                elseif pres_norm < dres_norm * rs #primal residual is smaller, need small rho
-                    rho = rho/bs;
-                end
-            end 
-            
-        elseif adp == 5  # Spectral penalty
-            if iter == 1
-                Θ0 = deepcopy(Θ);
-                Θ_hat0 = Θ1 + rho*(H-E1);
-                E0 = deepcopy(E);
-                W0 = deepcopy(W);
-            elseif mod(iter,freq)==0 && iter>siter && iter < eiter
-                Θ_hat = Θ1 + rho*(H-E1);
-                rho = adaptive_update(rho,W,W0,Θ_hat,Θ_hat0,E,E0,Θ,Θ0,orthval,minval)
-                # record for next estimation
-                Θ0 = deepcopy(Θ);
-                Θ_hat0 = deepcopy(Θ_hat);
-                E0 = deepcopy(E);
-                W0 = deepcopy(W);
-            end
+        if (primal_res <= eps_p && dual_res <= eps_d)
+            opt_res = abs(getnorm1(H)-rho*tr(V1DinvU1T'*Λ))
+            break
         end
-        push!(rhos,rho);
-        E1 = deepcopy(E); Θ1 = deepcopy(Θ);iter += 1;
-
+        E_old = E
     end
-    #plot(collect(1:length(tols)),tols)
-    #plot(collect(1:length(objs)),objs)
+    
     admmsol = SolutionADMM();
     admmsol.time = (time_ns() - time_start)/1e9;
+    E_diff = E-E_old
     admmsol.H = H;
     admmsol.iter = iter;
-    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,norm(V2'*Θ*U1),rho*norm(V2'*(E-E1)*U1);
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,rho*norm(V2'*Λ*U1),rho*norm(V2'*E_diff*U1);
     admmsol.res_opt = opt_res
     admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
     admmsol.z = getnorm1(admmsol.H);
-    return admmsol,pres,dres,tols,objs,rhos
+    return admmsol
+   
 end
-
 
 function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rho=1,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
     # initialize timer

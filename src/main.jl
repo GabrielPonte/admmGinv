@@ -29,8 +29,8 @@ global m,n,r  = 100,200,70;
 M = [100,200,300,400,500,1000,2000,3000,4000,5000];
 
 pres,dres,tols,objs,rhos = [],[],[],[],[];
-# for m1 in M
-for m1 in [1000]
+for m1 in M
+# for m1 in [1000]
     m = m1;
     n,r = floor(Int64,0.5*m),floor(Int64,0.25*m);
     nameInst = string("A_",m,"_",n,"_",r);
@@ -40,7 +40,7 @@ for m1 in [1000]
     inst = GinvInst(A,m,n,r);
     # Initialization
     ginvInit = getInitialInfoGinv(inst)
-    time_admm_1 = @elapsed admmsol_1,pres,dres,tols,objs,rhos = admm1norm(ginvInit;adp=3);#runADMM1n(G,V2,U1,Λ1,TP,false);
+    time_admm_1 = @elapsed admmsol_1 = admm1norm(ginvInit);#runADMM1n(G,V2,U1,Λ1,TP,false);
     admmsol_1.z = getnorm1(admmsol_1.H);
     admmsol_1.time = time_admm_1;
     admmres_1 = getResultsADMM(inst,admmsol_1);
@@ -103,18 +103,18 @@ end
 
 # plot(It,[P1,P2,D1,D2],labels=[L"\mathcal{P}_E" L"\mathcal{P}_B" L"\mathcal{D}_E" L"\mathcal{D}_B"], xlabel = L"k" ,ylabel="residual",yaxis=:log, yticks =  10.0.^(5:-1:-15))
 
-y_vals = rhos
-# y_vals = pres
-# y_vals = dres
-x_vals = collect(1:length(y_vals))
+# y_vals = rhos
+# # y_vals = pres
+# # y_vals = dres
+# x_vals = collect(1:length(y_vals))
 
-plot(
-        x_vals,
-        y_vals,
-        lw = 1.25,
-        yaxis=:log,
-        legend=:topright,
-        # legendfontsize=4,
-        # palette=palette(:default)#[init_color:end],
-        #palette = palette(:darkrainbow)[[1,3]]
-    )
+# plot(
+#         x_vals,
+#         y_vals,
+#         lw = 1.25,
+#         yaxis=:log,
+#         legend=:topright,
+#         # legendfontsize=4,
+#         # palette=palette(:default)#[init_color:end],
+#         #palette = palette(:darkrainbow)[[1,3]]
+#     )
