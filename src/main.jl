@@ -27,16 +27,26 @@ TP = :ML
 global m,n,r  = 100,200,70;
 M = [100,200,300,400,500,1000,2000,3000,4000,5000];
 
+<<<<<<< Updated upstream
 # for m1 in M
 for m1 in [50]
     global m = m1;
     global n,r = floor(Int64,0.5*m),floor(Int64,0.25*m);
+=======
+pres,dres,tols,objs,rhos = [],[],[],[],[];
+# global Dinv = Matrix(I,2,2)
+# for m1 in M
+for m1 in M
+    m = m1;
+    n,r = floor(Int64,0.5*m),floor(Int64,0.25*m);
+>>>>>>> Stashed changes
     nameInst = string("A_",m,"_",n,"_",r);
     println(string("\nStarting instance: m,n,r: ",m,",",n,",",r))
     # A = getMatlabInstance(nameInst,"A");
     global A = rand(m,r) * rand(r,n)
     global inst = GinvInst(A,m,n,r);
     # Initialization
+<<<<<<< Updated upstream
     global U,S,V = svd(A,full=true)
     global V1,V2 = V[:,1:r],V[:,r+1:n];
     global U1,D = U[:,1:r],diagm(S[1:r]);
@@ -47,6 +57,10 @@ for m1 in [50]
     global Λ21 = (1/maximum(norm.(eachrow(V1))))*V1
     
     time_admm_1 = @elapsed admmsol_1 = runADMM1n(G,V2,U1,Λ1,TP,false);
+=======
+    ginvInit = getInitialInfoGinv(inst)
+    time_admm_1 = @elapsed admmsol_1 =  admm1norm(ginvInit); #admm1norm(ginvInit;adp=0);#runADMM1n(G,V2,U1,Λ1,TP,false);
+>>>>>>> Stashed changes
     admmsol_1.z = getnorm1(admmsol_1.H);
     admmsol_1.time = time_admm_1;
     admmres_1 = getResultsADMM(inst,admmsol_1);
@@ -107,3 +121,20 @@ end
 # plot(It,D1,label=string(ω21), xlabel =L"k",ylabel=L"{\|\|H\|\|}_{2,0}")
 
 # plot(It,[P1,P2,D1,D2],labels=[L"\mathcal{P}_E" L"\mathcal{P}_B" L"\mathcal{D}_E" L"\mathcal{D}_B"], xlabel = L"k" ,ylabel="residual",yaxis=:log, yticks =  10.0.^(5:-1:-15))
+<<<<<<< Updated upstream
+=======
+
+# y_vals = dres
+# x_vals = collect(1:length(y_vals))
+
+# plot(
+#         x_vals,
+#         y_vals,
+#         lw = 1.25,
+#         yaxis=:log,
+#         legend=:topright,
+#         # legendfontsize=4,
+#         # palette=palette(:default)#[init_color:end],
+#         #palette = palette(:darkrainbow)[[1,3]]
+#     )
+>>>>>>> Stashed changes

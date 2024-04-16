@@ -1,11 +1,21 @@
 function getInitialInfoGinv(inst::GinvInst)
     U,Σ,V = svd(inst.A,full=true);
     D = Σ[1:inst.r];
+<<<<<<< Updated upstream
     Dinv = 1 ./D;
     Ur = U[:,1:inst.r];
     Vr,Vs = V[:,1:inst.r],V[:,inst.r+1:inst.n];
     G = Vr*SA.spdiagm(Dinv)*Ur';
     ginvInit = GinvInit(Ur,Vr,Vs,G,Dinv);
+=======
+    Dinv = 1 ./ D;
+    U1,U2 = U[:,1:inst.r],U[:,inst.r+1:inst.n];;
+    V1,V2 = V[:,1:inst.r],V[:,inst.r+1:inst.n];
+    V1Dinv = V1*SA.spdiagm(Dinv);
+    V1DinvU1T = V1Dinv*U1';
+    V2V2T = V2*V2';
+    ginvInit = GinvInit(U1,U2,V1,V2,Dinv,V1Dinv,V1DinvU1T,V2V2T);
+>>>>>>> Stashed changes
     return ginvInit
 end
 
