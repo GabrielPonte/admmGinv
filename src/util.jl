@@ -2,13 +2,23 @@ function getInitialInfoGinv(inst::GinvInst)
     U,Σ,V = svd(inst.A,full=true);
     D = Σ[1:inst.r];
     Dinv = 1 ./ D;
-    U1,U2 = U[:,1:inst.r],U[:,inst.r+1:inst.n];;
+    U1 = U[:,1:inst.r];
     V1,V2 = V[:,1:inst.r],V[:,inst.r+1:inst.n];
     V1Dinv = V1*SA.spdiagm(Dinv);
     V1DinvU1T = V1Dinv*U1';
     V2V2T = V2*V2';
-    ginvInit = GinvInit(U1,U2,V1,V2,Dinv,V1Dinv,V1DinvU1T,V2V2T);
+    ginvInit = GinvInit(U1,V1,V2,Dinv,V1Dinv,V1DinvU1T,V2V2T);
     return ginvInit
+    
+    
+    
+    
+    # Θ21 = (1/maximum(norm.(eachrow(V1))))*V1
+    # U1U1T,V2V2T = U1*U1',V2*V2'
+    # input1 = GinvADMM1(U1,V2,Θ1,V1DinvU1T,U1U1T,V2V2T,TP)
+    # input21 = GinvADMM21(U1,V2,Θ21,V1Dinv,V2V2T,TP)
+    # input20 = GinvADMM20(U1,V2,V1Dinv,V2V2T,0,0.0)
+    #return ginvInit
 end
 
 function getnorm0(A::Matrix{T},ϵ) where {T}
@@ -42,7 +52,7 @@ function getnorm21(A::Matrix{T}) where {T}
 end
 
 function getnorm20(A::Matrix{T},ϵ) where {T}
-    norm2rowsA = norm.(eachrow(A))
+    norm2rowsA = [norm(A[i, :]) for i in axes(A,1)]
     norm_20 = 0
     for el in norm2rowsA
         if el > ϵ
@@ -263,6 +273,30 @@ function round_exact(value,my_digits)
     return string(val,"0"^dif_float)
 end
 
+function append_to_plot2!(P1,D1,It,primal_res,dual_res,iter)
+    primal_res <= 1e-15 ? primal_res = 1e-12 : primal_res
+    dual_res <= 1e-15 ? dual_res = 1e-12 : dual_res
+    push!(P1,primal_res)
+    push!(D1,dual_res)
+    push!(It,iter)
+end
+
+function append_to_plot_extended2!(primal_res1,primal_res2,dual_res1,dual_res2,iter)
+    primal_res1 <= 1e-15 ? primal_res1 = 1e-12 : primal_res1
+    primal_res2 <= 1e-15 ? primal_res2 = 1e-12 : primal_res2
+    dual_res1 <= 1e-15 ? dual_res1 = 1e-12 : dual_res1
+    dual_res2 <= 1e-15 ? dual_res2 = 1e-12 : dual_res2
+    push!(P1,primal_res1)
+    push!(P2,primal_res2)
+    push!(D1,dual_res1)
+    push!(D2,dual_res2)
+    push!(It,iter)
+end
+
+# function get_input_21(ginvInit)
+#     nput21 = GinvADMM21(U1,V2,Θ21,V1Dinv,V2V2T,TP)
+
+
 # function writeAllCSV!(arr_res_all::Vector{T},ra::GinvResult,rb::GinvResult) where {T}
 #     folder_1 = "..\\ResultsCSV";
 #     mkdir_ginv(folder_1)
@@ -286,3 +320,4 @@ end
 #     );
 #     JLD.save(name_inst, "psols",psols)
 # end
+
