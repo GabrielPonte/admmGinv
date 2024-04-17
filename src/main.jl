@@ -29,8 +29,8 @@ global m,n,r  = 100,200,70;
 M = [100,200,300,400,500,1000,2000,3000,4000,5000];
 
 pres,dres,tols,objs,rhos = [],[],[],[],[];
+
 for m1 in M
-# for m1 in [1000]
     m = m1;
     n,r = floor(Int64,0.5*m),floor(Int64,0.25*m);
     nameInst = string("A_",m,"_",n,"_",r);
@@ -40,6 +40,7 @@ for m1 in M
     inst = GinvInst(A,m,n,r);
     # Initialization
     ginvInit = getInitialInfoGinv(inst)
+
     time_admm_1 = @elapsed admmsol_1 = admm1norm(ginvInit);#runADMM1n(G,V2,U1,Λ1,TP,false);
     admmsol_1.z = getnorm1(admmsol_1.H);
     admmsol_1.time = time_admm_1;
