@@ -212,6 +212,144 @@ function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho
    
 end
 
+function admm1norm_reduced(ginvInit::GinvInit;eps_abs=1e-3,eps_rel=1e-3,eps_opt=1e-5,rho=1,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    U2 = ginvInit.U2;
+    m = size(U2,1);
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    V1,V1Dinv = ginvInit.V1,ginvInit.V1Dinv;
+    V2V2T = ginvInit.V2V2T;
+    Θ = (1/maximum(norm.(eachrow(V1))))*V1;
+    n,r = size(Θ);
+    rho_inv = 1/rho;
+    iter=0; norm_V1Dinv = norm(V1Dinv);
+    primal_res,dual_res,opt_res = 0.0,0.0,0.0;
+    eps_p,eps_d = 0.0,0.0;
+    Λ = rho_inv*Θ; E = ginvInit.V1Dinv+Λ; 
+    E_old = E; M = Nothing;
+    #J = (Matrix(I,m,m) - U2*U2')';
+    #Phi = ones(n,m-r);
+    # start admm
+    while true
+        # update Z where W := V2*J with J = (- V1DinvU1T + E - Λ)
+        W = V2V2T*(E - Λ)
+        # update of E
+        M = V1Dinv + W
+        """
+        tem algum erro nesse codigo que não tinha antes
+        admm não está convergindo nem pra update exato, verificar.
+        Sim, ja verifiquei se o problema não era a formula e não é isso
+        """
+        E = subprobD(M + Λ,U1,U2,rho) 
+        #D = closed_form1n((M + Λ)*U1',rho_inv);
+        #@show norm(D*U2)
+        # sleep(0.001)
+        #E = closed_form1n((M + Λ)*U1',1/rho_inv)*J*U1;
+        # E,Phi = ALM_subprobE(rho,1e2,(M + Λ),U1,U2,Phi,iter);
+        
+        # @show norm(E-E2);
+        # Compute residuals
+        res_infeas = M - E
+        # Update P
+        Λ += res_infeas
+        # Stopping criteria
+        primal_res = norm(res_infeas)
+        # @show primal_res
+        if stop_limit == :Boyd
+            dual_res = rho*norm(V2'*(E-E_old))
+            eps_p = sqrt(n*r)*eps_abs + eps_rel*maximum([norm(E),norm(W),norm_V1Dinv])
+            eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*rho*norm(V2'*Λ)
+            E_old = E
+        elseif stop_limit == :OptGap
+            dual_res = rho*norm(V2'*Λ)
+            eps_p = eps_opt,eps_d = eps_opt
+        else
+            error("stop limit not defined correctly")
+        end
+        @show iter,primal_res,dual_res
+        # sleep(1)
+        iter += 1
+        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (primal_res <= eps_p && dual_res <= eps_d)
+            opt_res = abs(getnorm1(M)-rho*tr(Λ'*V1Dinv))
+            break
+        end
+    end
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    admmsol.H = M*U1';
+    admmsol.iter = iter;
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,rho*norm(V2'*Λ),rho*norm(V2'*(E-E_old));
+    admmsol.res_opt = opt_res
+    admmsol.eps_p,admmsol.eps_d = eps_p,eps_d;  
+    admmsol.z = getnorm1(admmsol.H);
+    return admmsol
+   
+end
+
+function admm1norm_reduced_v2(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho=3,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    U2 = ginvInit.U2;
+    V1,V1Dinv = ginvInit.V1,ginvInit.V1Dinv;
+    V2V2T = ginvInit.V2V2T;
+    Θ = (1/maximum(norm.(eachrow(V1))))*V1;
+    n,r = size(Θ);
+    rho_inv = 1/rho;
+    iter=0; norm_V1Dinv = norm(V1Dinv);
+    primal_res,dual_res,opt_res = 0.0,0.0,0.0;
+    eps_p,eps_d = 0.0,0.0;
+    Λ = rho_inv*Θ; E = ginvInit.V1Dinv+Λ; 
+    E_old = E; M = Nothing;
+    # start admm
+    while true
+        # update Z where W := V2*J with J = (- V1DinvU1T + E - Λ)
+        W = V2V2T*(E - Λ)
+        # update of E
+        M = V1Dinv + W
+        # E = subprobD(M + Λ,U1,rho) 
+        # D = closed_form1n((M + Λ)*U1',rho_inv);
+        E = ALM_subprobE(rho,10,M + Λ,U1,U2);
+        
+        # Compute residuals
+        res_infeas = M - E
+        # Update P
+        Λ += res_infeas
+        # Stopping criteria
+        primal_res = norm(res_infeas)
+        if stop_limit == :Boyd
+            dual_res = rho*norm(V2'*(E-E_old))
+            eps_p = sqrt(n*r)*eps_abs + eps_rel*maximum([norm(E),norm(W),norm_V1Dinv])
+            eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*rho*norm(V2'*Λ)
+            E_old = E
+        elseif stop_limit == :OptGap
+            dual_res = rho*norm(V2'*Λ)
+            eps_p = eps_opt,eps_d = eps_opt
+        else
+            error("stop limit not defined correctly")
+        end
+        @show iter,primal_res,dual_res
+        iter += 1
+        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (primal_res <= eps_p && dual_res <= eps_d)
+            opt_res = abs(getnorm1(M)-rho*tr(Λ'*V1Dinv))
+            break
+        end
+    end
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    admmsol.H = M*U1';
+    admmsol.iter = iter;
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,rho*norm(V2'*Λ),rho*norm(V2'*(E-E_old));
+    admmsol.res_opt = opt_res
+    admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
+    admmsol.z = getnorm21(admmsol.H);
+    return admmsol
+end
+
+
 function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rho=1,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
     # initialize timer
     time_start = time_ns()
@@ -302,7 +440,6 @@ function admm20norm(ginvInit::GinvInit,ω21::Float64,nzr21::Int64;rho=1,max_iter
     admmsol.z = getnorm21(admmsol.H);
     return admmsol
 end
-
 
 
 

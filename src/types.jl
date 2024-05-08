@@ -7,6 +7,7 @@ end
 
 mutable struct GinvInit
     U1::Matrix{Float64}
+    U2::Matrix{Float64}
     V1::Matrix{Float64}
     V2::Matrix{Float64}
     Dinv::Vector{Float64}

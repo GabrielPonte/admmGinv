@@ -44,6 +44,9 @@ function solve1_not_eff_grb(inst::GinvInst)
     AH = A*H;
     AHA = A*H*A;
     HAAp = H*A*pinv(A);
+    # @constraint(model, AHA .== A);
+    # @constraint(model, HAAp .== H);
+    # @constraint(model, AH .== (AH)');
     @constraint(model, AHA - A .<= 5e-6);
     @constraint(model, HAAp - H .<= 5e-6);
     @constraint(model, AH - (AH)' .<= 5e-6);

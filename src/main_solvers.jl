@@ -32,7 +32,7 @@ M = [100,200,300,400,500,1000,2000,3000,4000,5000];
 
 
 pres,dres,tols,objs,rhos = [],[],[],[],[];
-for m1 in M
+for m1 in [40,100,200]
 # for m1 in [1000]
     m = m1;
     n,r = floor(Int64,0.5*m),floor(Int64,0.25*m);
@@ -43,11 +43,11 @@ for m1 in M
     inst = GinvInst(A,m,n,r);
     # Initialization
     ginvInit = getInitialInfoGinv(inst)
-    time_grb_1 = @elapsed grbsol_1 = solve21_not_eff_msk(inst)#admm1norm(ginvInit);
+    time_grb_1 = @elapsed grbsol_1 = solve1_not_eff_grb(inst)#admm1norm(ginvInit);
     grbsol_1.z = getnorm1(grbsol_1.H);
     grbsol_1.time = time_grb_1;
     grbres_1 = getResultsSolver(inst,grbsol_1);
-    writeCSV!(arr_resADMM_1,grbres_1,Symbol(:MSK_not_eff))
+    writeCSV!(arr_resADMM_1,grbres_1,Symbol(:GRB_2_not_eff))
     @show grbsol_1.z,grbsol_1.time
     println(string("m = ",m,". ADMM 1 finished in ", round_exact(grbsol_1.time,2), " sec. 1 norm ", round_exact(grbsol_1.z,3)));
     flush(stdout)
