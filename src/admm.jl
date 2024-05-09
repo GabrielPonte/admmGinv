@@ -288,7 +288,7 @@ function admm1norm_proj(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-
 end
 
 
-function mm1norm(x,ginvInit::GinvInit;eps_abs=1e-2,eps_rel=1e-4,eps_opt=1e-5,rho=3,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
+function mm1norm(x,ginvInit::GinvInit;eps_abs=1e-3,eps_rel=1e-4,eps_opt=1e-5,rho=3,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
     # initialize timer
     
     time_start = time_ns()
@@ -312,9 +312,10 @@ function mm1norm(x,ginvInit::GinvInit;eps_abs=1e-2,eps_rel=1e-4,eps_opt=1e-5,rho
     # lambda = zeros(r*(m-n) + m*n);
     # v = zeros(n*m);
     tau = 1e-1;
-    v =tau*F'*g
-    # x = reshape(x,n,m)
-    # v = zeros(n,m);
+    # v =tau*F'*g
+    x = reshape(x,n,m)
+    v = tau*V1DinvU1T;
+    v_temp =  tau*V1DinvU1T;
     # lambda = zeros(r+n,2*m-r)
     # @show size(H),size(g),size(lambda)
     # epow
@@ -326,47 +327,50 @@ function mm1norm(x,ginvInit::GinvInit;eps_abs=1e-2,eps_rel=1e-4,eps_opt=1e-5,rho
     eps_p,eps_d = 0.0,0.0;
     
     G = V1DinvU1T;
+    # x_old = copy(x);
     #x = zeros(m*n);
     # Λ = rho_inv*Θ; E = V1DinvU1T + Λ; 
     # E_old = E; H = Nothing;
-   
+    # v_temp = 0.0
     while true
-        
+        #alp = 30/(iter+30);
+        x_old = copy(x);
+        #v_temp_old = copy(v_temp)
         # @show norm(reshape(F'*g,n,m) - G) # correto
         # @show norm(reshape(F'*F*vec(x),n,m) - (V1V1T*x + x*U2U2T)) # correto
         # @show norm(reshape(- F'*(F*vec(x)-g),n,m) - (- (V1V1T*x + x*U2U2T) + G))
 
-        # v = v - (V1V1T*x + x*U2U2T) + G
+        
         x =  5*closed_form1n(v,1)
-        v = v - tau*F'*(F*x-g)
-        # return
-        # q = fit(LassoPath,sparse(F), (g-lambda),
-        #         intercept = false,
-        #         standardize=false,
-        #         λ=[my_lam],
-        #         α=1.0,
-        #         cd_tol=1e-5,
-        #         cd_maxiter=100,    
-        #     );
-        # x = q.coefs[:,end]
+        v = v + tau*(G - (V1V1T*x + x*U2U2T))
+        # alp = 1;
+        # v_temp_old = copy(v-temp)
+        # if iter == 0
+        #     v = v_temp
+        # else
+        # alp = 1;
+        #alp = 3/(iter+3);
+        # alp = 1;
+        #v = (alp)*v_temp + (1-alp)*v_temp_old;
+        # end
+        # v = v - tau*F'*(F*x-g)
         # Compute residuals
         # res_infeas = F*x-g
         # @show size(V1'*x - DinvU1T);
         # @show size(x*U2)
-        # res_infeas = ([V1'*x - DinvU1T zeros(r,m-r); zeros(n,m) x*U2])
-        res_infeas = F*x-g;
-        primal_res = norm(res_infeas)
-        # Update P
-        # lambda += res_infeas
+        res_infeas = ([V1'*x - DinvU1T zeros(r,m-r); zeros(n,m) x*U2])
+        # res_infeas = F*x-g;
+        primal_res = norm(res_infeas)/norm(DinvU1T)
+        # primal_res = norm(x-x_old)
         # Stopping criteria
         iter += 1
         if iter == max_iter || ((time_ns() - time_start)/1e9) >= 7200
             break
         end
-        @show iter, norm(x,1),primal_res
+        # @show iter, norm(x,1),primal_res
         # sleep(0.25)
         if (primal_res <= eps_abs)
-            opt_res = abs(getnorm1(H)-rho*tr(V1DinvU1T'*Λ))
+            # opt_res = abs(getnorm1(H)-rho*tr(V1DinvU1T'*Λ))
             break
         end
     end
