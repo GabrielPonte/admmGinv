@@ -147,7 +147,7 @@
 # end
 
 
-function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho=3,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
+function admm1norm(ginvInit::GinvInit;eps_abs=1e-3,eps_rel=1e-3,eps_opt=1e-5,rho=3,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
     # initialize timer
     time_start = time_ns()
     # initialize parameters
@@ -156,15 +156,16 @@ function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho
     V2V2T = ginvInit.V2V2T;
     V1U1T,U1U1T = V1*U1',U1*U1';
     # Θ  = (1/maximum(abs.(V1U1T)))*V1U1T
-    Θ = (1/norm(V1U1T,Inf))*V1U1T;
+    Θ = V1U1T;
     m,r = size(U1)
     n  = size(V2,1)
+    rho = 2;
     rho_inv = 1/rho;
     iter=0; norm_V1DinvU1T = norm(V1DinvU1T);
     primal_res,dual_res,opt_res = 0.0,0.0,0.0;
     eps_p,eps_d = 0.0,0.0;
     Λ = rho_inv*Θ; E = V1DinvU1T + Λ; 
-    E_old = E; H = Nothing;
+    E_old = E; H = 0.1*V1DinvU1T; Z= Nothing;
     while true
         # update Z where W := V2*Z*U1' with J = (- G + E - Λ)
         W = V2V2T*(E - Λ)*U1U1T
@@ -189,6 +190,80 @@ function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho
             error("stop limit not defined correctly")
         end
         iter += 1
+        # @show iter, primal_res,dual_res
+        if iter == max_iter || ((time_ns() - time_start)/1e9) >= 7200
+            break
+        end
+        if (primal_res <= eps_p && dual_res <= eps_d)
+            opt_res = abs(getnorm1(H)-rho*tr(V1DinvU1T'*Λ))
+            Z = V2'*(E - Λ)*U1
+            break
+        end
+        E_old = E
+    end
+    @show norm(vec(H),1)
+    solve1grb_v2(ginvInit,m,n,r) 
+    sleep(1)
+    mm1norm(vec(E),ginvInit) # KNITRO here?
+    # solve1grb(ginvInit,m,n,r,Z)
+    
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    E_diff = E-E_old
+    admmsol.H = H;
+    admmsol.iter = iter;
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,rho*norm(V2'*Λ*U1),rho*norm(V2'*E_diff*U1);
+    admmsol.res_opt = opt_res
+    admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
+    admmsol.z = getnorm1(admmsol.H);
+    return admmsol
+end
+
+function admm1norm_proj(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho=3,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    U2 = ginvInit.U2;
+    V1,V1DinvU1T = ginvInit.V1,ginvInit.V1DinvU1T;
+    V2V2T = ginvInit.V2V2T;
+    U2U2T = U2*U2';
+    global V1U1T,U1U1T = V1*U1',U1*U1';
+    # Θ  = (1/maximum(abs.(V1U1T)))*V1U1T
+    Θ = (1/norm(V1U1T,Inf))*V1U1T;
+    m,r = size(U1)
+    n  = size(V2,1)
+    rho = 1e-4
+    rho_inv = 1/rho;
+    iter=0; norm_V1DinvU1T = norm(V1DinvU1T);
+    primal_res,dual_res,opt_res = 0.0,0.0,0.0;
+    eps_p,eps_d = 0.0,0.0;
+    Λ = rho_inv*Θ; E = V1DinvU1T + Λ;
+    E_old = E; H = Nothing;
+    while true
+        # update Z where W := V2*Z*U1' with J = (- G + E - Λ)
+        H = V2V2T*(E - Λ)*U1U1T+ V1DinvU1T;
+        # update of E
+        E = closed_form1n(H + Λ,rho_inv)
+        # Compute residuals
+        res_infeas = H - E
+        primal_res = norm(res_infeas)
+        
+        dual_res = rho*norm(V2'*(E-E_old)*U1)
+        # @show primal_res,dual_res
+        # Update P
+        Λ += res_infeas
+        # Stopping criteria
+        if stop_limit == :Boyd
+            eps_p = sqrt(n*m)*eps_abs + eps_rel*maximum([norm(E),norm(H)])
+            eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*rho*norm(V2'*Λ*U1)
+        elseif stop_limit == :OptGap
+            dual_res = rho*norm(V2'*Λ*U1)
+            eps_p = eps_opt;eps_d = eps_opt
+        else
+            error("stop limit not defined correctly")
+        end
+        iter += 1
         if iter == max_iter || ((time_ns() - time_start)/1e9) >= 7200
             break
         end
@@ -197,6 +272,103 @@ function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho
             break
         end
         E_old = E
+    end
+    
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    E_diff = E-E_old
+    admmsol.H = H;
+    admmsol.iter = iter;
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,rho*norm(V2'*Λ*U1),rho*norm(V2'*E_diff*U1);
+    admmsol.res_opt = opt_res
+    admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
+    admmsol.z = getnorm1(admmsol.H);
+    return admmsol
+   
+end
+
+
+function mm1norm(x,ginvInit::GinvInit;eps_abs=1e-2,eps_rel=1e-4,eps_opt=1e-5,rho=3,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
+    # initialize timer
+    
+    time_start = time_ns()
+    # initialize parameters
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    V1,V1DinvU1T = ginvInit.V1,ginvInit.V1DinvU1T;
+    Dinv = diagm(ginvInit.Dinv);
+    V2V2T = ginvInit.V2V2T;
+    U2 = ginvInit.U2;
+    DinvU1T = Dinv*U1';
+    U2U2T = U2*U2';
+    V1V1T = V1*V1';
+    m,r = size(U1);n  = size(V2,1);
+    F = [kron(Matrix(I,m,m),V1');kron(U2',Matrix(I,n,n))];
+    g = [vec(spdiagm(ginvInit.Dinv)*U1');zeros((m-r)*n)];
+    # mF = size(F,1);
+    # @show size(F'*F),rank(F'*F)
+    # return
+    
+    # V1U1T,U1U1T = V1*U1',U1*U1';
+    # lambda = zeros(r*(m-n) + m*n);
+    # v = zeros(n*m);
+    tau = 1e-1;
+    v =tau*F'*g
+    # x = reshape(x,n,m)
+    # v = zeros(n,m);
+    # lambda = zeros(r+n,2*m-r)
+    # @show size(H),size(g),size(lambda)
+    # epow
+    rho = 1
+    rho_inv = 1/rho;
+    # my_lam = 1/(rho*mF);
+    iter=0; 
+    primal_res,dual_res,opt_res = 0.0,0.0,0.0;
+    eps_p,eps_d = 0.0,0.0;
+    
+    G = V1DinvU1T;
+    #x = zeros(m*n);
+    # Λ = rho_inv*Θ; E = V1DinvU1T + Λ; 
+    # E_old = E; H = Nothing;
+   
+    while true
+        
+        # @show norm(reshape(F'*g,n,m) - G) # correto
+        # @show norm(reshape(F'*F*vec(x),n,m) - (V1V1T*x + x*U2U2T)) # correto
+        # @show norm(reshape(- F'*(F*vec(x)-g),n,m) - (- (V1V1T*x + x*U2U2T) + G))
+
+        # v = v - (V1V1T*x + x*U2U2T) + G
+        x =  5*closed_form1n(v,1)
+        v = v - tau*F'*(F*x-g)
+        # return
+        # q = fit(LassoPath,sparse(F), (g-lambda),
+        #         intercept = false,
+        #         standardize=false,
+        #         λ=[my_lam],
+        #         α=1.0,
+        #         cd_tol=1e-5,
+        #         cd_maxiter=100,    
+        #     );
+        # x = q.coefs[:,end]
+        # Compute residuals
+        # res_infeas = F*x-g
+        # @show size(V1'*x - DinvU1T);
+        # @show size(x*U2)
+        # res_infeas = ([V1'*x - DinvU1T zeros(r,m-r); zeros(n,m) x*U2])
+        res_infeas = F*x-g;
+        primal_res = norm(res_infeas)
+        # Update P
+        # lambda += res_infeas
+        # Stopping criteria
+        iter += 1
+        if iter == max_iter || ((time_ns() - time_start)/1e9) >= 7200
+            break
+        end
+        @show iter, norm(x,1),primal_res
+        # sleep(0.25)
+        if (primal_res <= eps_abs)
+            opt_res = abs(getnorm1(H)-rho*tr(V1DinvU1T'*Λ))
+            break
+        end
     end
     
     admmsol = SolutionADMM();

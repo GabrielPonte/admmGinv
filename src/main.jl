@@ -1,5 +1,5 @@
 using LinearAlgebra
-using JuMP, MosekTools, Gurobi
+using JuMP, MosekTools, Gurobi,Lasso,KNITRO
 using MAT,DelimitedFiles
 
 import MutableArithmetics
@@ -16,6 +16,7 @@ include("instances.jl")
 include("closed_form_sols.jl")
 include("admm.jl")
 include("step_sizes.jl")
+include("solvers.jl")
 
 arr_resADMM_1,arr_resADMM_21,arr_resADMM_20,arr_resADMM_210 = init_ginv_res_admm(), init_ginv_res_admm(),init_ginv_res_admm(),init_ginv_res_admm();
 arr_resGRB_1,arr_resMSK_21 = init_ginv_res_solver(),init_ginv_res_solver();
@@ -30,18 +31,18 @@ M = [100,200,300,400,500,1000,2000,3000,4000,5000];
 
 pres,dres,tols,objs,rhos = [],[],[],[],[];
 
-for m1 in M
+for m1 in [40]
     m = m1;
     n,r = floor(Int64,0.5*m),floor(Int64,0.25*m);
     nameInst = string("A_",m,"_",n,"_",r);
     println(string("\nStarting instance: m,n,r: ",m,",",n,",",r))
     A = getMatlabInstance(nameInst,"A");
-    # global A = rand(m,r) * rand(r,n)
+    # global A = rand(m,r) * rand(r,n)fa
     inst = GinvInst(A,m,n,r);
     # Initialization
     ginvInit = getInitialInfoGinv(inst)
 
-    time_admm_1 = @elapsed admmsol_1 = admm1norm(ginvInit);#runADMM1n(G,V2,U1,Λ1,TP,false);
+    time_admm_1 = @elapsed admmsol_1 = admm1norm(ginvInit);
     admmsol_1.z = getnorm1(admmsol_1.H);
     admmsol_1.time = time_admm_1;
     admmres_1 = getResultsADMM(inst,admmsol_1);

@@ -1,18 +1,10 @@
-function solve1grb(inst::GinvInst,ginvInit::GinvInit)
-    m,n,r = inst.m,inst.n,inst.r;
+function solve1grb(ginvInit::GinvInit,m,n,r)
     model = Model(Gurobi.Optimizer);
-    set_silent(model);
-    set_time_limit_sec(model, 7200)
-    set_attribute(model, "BarConvTol", 1e-5)
-    set_attribute(model, "BarQCPConvTol", 1e-5)
-    set_attribute(model, "FeasibilityTol", 1e-5)
-    set_attribute(model, "OptimalityTol", 1e-5)
-    @variable(model, F[1:n,1:m]);
     @variable(model, Z[1:n-r,1:r]);
-    Amat = ginvInit.V1DinvU1T + ginvInit.V2*Z*ginvInit.U1';
-    @constraint(model, F .>= Amat);
-    @constraint(model, F .>= -Amat);
-    @objective(model,Min,sum(F))
+    Amat = vec(ginvInit.V1DinvU1T + ginvInit.V2*Z*ginvInit.U1');
+    @variable(model, t)
+    @constraint(model, [t; Amat] in MOI.NormOneCone(1 + length(Amat)))
+    @objective(model,Min,t)
     time_to_solve = @elapsed optimize!(model);
     bsol = SolutionOptimizer();
     primal_status = termination_status(model);
@@ -23,6 +15,42 @@ function solve1grb(inst::GinvInst,ginvInit::GinvInit)
         bsol.H = zeros(n,m);
         bsol.z,bsol.time = Inf, time_to_solve;
     end
+    return bsol
+end
+
+function solve1grb_v2(ginvInit::GinvInit,m,n,r)
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    V1,V1DinvU1T = ginvInit.V1,ginvInit.V1DinvU1T;
+    Dinv = diagm(ginvInit.Dinv);
+    V2V2T = ginvInit.V2V2T;
+    U2 = ginvInit.U2;
+    # F = [kron(Matrix(I,m,m),V1');kron(U2',Matrix(I,n,n))];
+    # g = [vec(spdiagm(ginvInit.Dinv)*U1');zeros((m-r)*n)];
+    model = Model(Gurobi.Optimizer);
+    set_silent(model)
+    
+    
+    @variable(model, t)
+    # @variable(model,x[1:n*m])
+    # @constraint(model, [t; x] in MOI.NormOneCone(1 + length(x)))
+    # @constraint(model,F*x .== g)
+    @variable(model, E[1:n,1:m]);
+    @constraint(model, [t; vec(E)] in MOI.NormOneCone(1 + length(vec(E))))
+    @constraint(model,ginvInit.V1'*E .== ginvInit.V1'*ginvInit.V1DinvU1T)
+    @constraint(model,E*ginvInit.U2 .== 0)
+    @objective(model,Min,t)
+    time_to_solve = @elapsed optimize!(model);
+    bsol = SolutionOptimizer();
+    @show objective_value(model)
+    # sleep(10)
+    primal_status = termination_status(model);
+    # if primal_status != MOI.TIME_LIMIT
+    #     bsol.H = ginvInit.V1DinvU1T + ginvInit.V2*value.(Z)*ginvInit.U1';
+    #     bsol.z,bsol.time =  objective_value(model),time_to_solve;
+    # else
+    #     bsol.H = zeros(n,m);
+    #     bsol.z,bsol.time = Inf, time_to_solve;
+    # end
     return bsol
 end
 
