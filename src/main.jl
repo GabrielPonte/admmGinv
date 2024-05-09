@@ -18,6 +18,7 @@ include("admm.jl")
 include("step_sizes.jl")
 
 arr_resADMM_1,arr_resADMM_21,arr_resADMM_20,arr_resADMM_210 = init_ginv_res_admm(), init_ginv_res_admm(),init_ginv_res_admm(),init_ginv_res_admm();
+arr_resBREG_1 = init_ginv_res_admm();
 arr_resGRB_1,arr_resMSK_21 = init_ginv_res_solver(),init_ginv_res_solver();
 println("\nStarting procedure...")
 
@@ -30,7 +31,7 @@ M = [100,200,300,400,500,1000,2000,3000,4000,5000];
 
 pres,dres,tols,objs,rhos = [],[],[],[],[];
 
-for m1 in M
+for m1 in [500]
     m = m1;
     n,r = floor(Int64,0.5*m),floor(Int64,0.25*m);
     nameInst = string("A_",m,"_",n,"_",r);
@@ -41,13 +42,21 @@ for m1 in M
     # Initialization
     ginvInit = getInitialInfoGinv(inst)
 
-    time_admm_1 = @elapsed admmsol_1 = admm1norm(ginvInit);#runADMM1n(G,V2,U1,Λ1,TP,false);
+    time_admm_1 = @elapsed admmsol_1 = admm1norm(ginvInit,eps_abs=1e-4,eps_rel=1e-3);
     admmsol_1.z = getnorm1(admmsol_1.H);
     admmsol_1.time = time_admm_1;
     admmres_1 = getResultsADMM(inst,admmsol_1);
     writeCSV!(arr_resADMM_1,admmres_1,Symbol(:ADMM_1_test,TP))
     @show admmsol_1.z,admmsol_1.time
-    println(string("m = ",m,". ADMM 1 finished in ", round_exact(admmsol_1.time,2), " sec. 1 norm ", round_exact(admmsol_1.z,3), ", 2,0 norm ", admmres_1.NZR, ". Iter: ", admmsol_1.iter));
+    println(string("m = ",m,". ADMM 1 finished in ", round_exact(admmsol_1.time,2), " sec. 1 norm ", round_exact(admmsol_1.z,3), ", 0 norm ", admmres_1.norm_0, ". Iter: ", admmsol_1.iter));
+    flush(stdout)
+
+    time_breg_1 = @elapsed bregsol_1 = breg1norm(ginvInit,eps=5e-1);
+    bregsol_1.z = getnorm1(bregsol_1.H);
+    bregsol_1.time = time_breg_1;
+    bregres_1 = getResultsADMM(inst,bregsol_1);
+    writeCSV!(arr_resBREG_1,bregres_1,Symbol(:BREG_1,TP))
+    println(string("m = ",m,". BREG 1 finished in ", round_exact(bregsol_1.time,2), " sec. 1 norm ", round_exact(bregsol_1.z,3), ", 0 norm ", bregres_1.norm_0, ". Iter: ", bregsol_1.iter));
     flush(stdout)
     
     # time_admm_21 = @elapsed admmsol_21 = admm21norm(ginvInit);#runADMM21n(V1Dinv,V2,U1,Λ21,TP,false);

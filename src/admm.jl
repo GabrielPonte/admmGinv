@@ -212,6 +212,47 @@ function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho
    
 end
 
+function breg1norm(ginvInit::GinvInit;eps=1e-4,max_iter=5e4,time_limit=7200)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    m,n,r = ginvInit.m,ginvInit.n,ginvInit.r;
+    V1V1T,U2U2T = ginvInit.V1*ginvInit.V1',ginvInit.U2*ginvInit.U2'
+    DinvU1T = diagm(ginvInit.Dinv)*ginvInit.U1';
+    V1DinvU1T = ginvInit.V1DinvU1T;
+    tau = 2e-1; 
+    mu = 5;
+    iter=0; 
+    v = tau*V1DinvU1T; 
+    E = Nothing;
+    primal_res = 0.0;
+    while true
+        E = mu*closed_form1n(v,1)
+        v = v + tau*(V1DinvU1T - (V1V1T*E + E*U2U2T))
+        iter += 1
+        if iter == max_iter || ((time_ns() - time_start)/1e9) >= 7200
+            break
+        end
+        primal_res = norm([ginvInit.V1'*E - DinvU1T zeros(r,m-r); zeros(n,m) E*ginvInit.U2])
+
+        #primal_res = norm(ginvInit.V1'*E - DinvU1T)^2 + norm(E*ginvInit.U2)^2;
+        # @show iter,primal_res
+        if primal_res <= eps 
+            break
+        end
+    end
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    admmsol.H = V1DinvU1T + ginvInit.V2V2T*E*ginvInit.U1*ginvInit.U1';
+    admmsol.iter = iter;
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,0.0,0.0;
+    admmsol.res_opt = 0.0;
+    admmsol.eps_p,admmsol.eps_d = 0.0,0.0; 
+    admmsol.z = getnorm1(admmsol.H);
+    return admmsol
+   
+end
+
 function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rho=1,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
     # initialize timer
     time_start = time_ns()
