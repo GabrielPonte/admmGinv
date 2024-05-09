@@ -315,7 +315,7 @@ function mm1norm(x,ginvInit::GinvInit;eps_abs=1e-3,eps_rel=1e-4,eps_opt=1e-5,rho
     # v =tau*F'*g
     x = reshape(x,n,m)
     v = tau*V1DinvU1T;
-    v_temp =  tau*V1DinvU1T;
+    # v_temp =  tau*V1DinvU1T;
     # lambda = zeros(r+n,2*m-r)
     # @show size(H),size(g),size(lambda)
     # epow
