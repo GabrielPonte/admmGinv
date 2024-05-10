@@ -32,7 +32,7 @@ M = [100,200,300,400,500,1000,2000,3000,4000,5000];
 
 pres,dres,tols,objs,rhos = [],[],[],[],[];
 
-for m1 in [300]
+for m1 in [100,200,300]
     m = m1;
     n,r = floor(Int64,0.5*m),floor(Int64,0.25*m);
     nameInst = string("A_",m,"_",n,"_",r);
@@ -43,10 +43,7 @@ for m1 in [300]
     # Initialization
     ginvInit = getInitialInfoGinv(inst)
 
-    admm1norm_genLasso(ginvInit,zeros(n,m),rand(n,r),zeros(n,m),3.0)
-
-
-    time_admm_1 = @elapsed admmsol_1 = admm1norm_v2(ginvInit,eps_abs=1e-5,eps_rel=1e-5);
+    time_admm_1 = @elapsed admmsol_1 = admm1norm_v2(ginvInit,eps_opt=1e-4,stop_limit=:OptGap);
     admmsol_1.z = getnorm1(admmsol_1.H);
     admmsol_1.time = time_admm_1;
     admmres_1 = getResultsADMM(inst,admmsol_1);
