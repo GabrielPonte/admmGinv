@@ -16,6 +16,7 @@ include("instances.jl")
 include("closed_form_sols.jl")
 include("admm.jl")
 include("step_sizes.jl")
+include("solvers.jl")
 
 arr_resADMM_1,arr_resADMM_21,arr_resADMM_20,arr_resADMM_210 = init_ginv_res_admm(), init_ginv_res_admm(),init_ginv_res_admm(),init_ginv_res_admm();
 arr_resBREG_1 = init_ginv_res_admm();
@@ -31,7 +32,7 @@ M = [100,200,300,400,500,1000,2000,3000,4000,5000];
 
 pres,dres,tols,objs,rhos = [],[],[],[],[];
 
-for m1 in [500]
+for m1 in [300]
     m = m1;
     n,r = floor(Int64,0.5*m),floor(Int64,0.25*m);
     nameInst = string("A_",m,"_",n,"_",r);
@@ -42,7 +43,10 @@ for m1 in [500]
     # Initialization
     ginvInit = getInitialInfoGinv(inst)
 
-    time_admm_1 = @elapsed admmsol_1 = admm1norm(ginvInit,eps_abs=1e-4,eps_rel=1e-3);
+    admm1norm_genLasso(ginvInit,zeros(n,m),rand(n,r),zeros(n,m),3.0)
+
+
+    time_admm_1 = @elapsed admmsol_1 = admm1norm_v2(ginvInit,eps_abs=1e-5,eps_rel=1e-5);
     admmsol_1.z = getnorm1(admmsol_1.H);
     admmsol_1.time = time_admm_1;
     admmres_1 = getResultsADMM(inst,admmsol_1);
@@ -51,13 +55,13 @@ for m1 in [500]
     println(string("m = ",m,". ADMM 1 finished in ", round_exact(admmsol_1.time,2), " sec. 1 norm ", round_exact(admmsol_1.z,3), ", 0 norm ", admmres_1.norm_0, ". Iter: ", admmsol_1.iter));
     flush(stdout)
 
-    time_breg_1 = @elapsed bregsol_1 = breg1norm(ginvInit,eps=5e-1);
-    bregsol_1.z = getnorm1(bregsol_1.H);
-    bregsol_1.time = time_breg_1;
-    bregres_1 = getResultsADMM(inst,bregsol_1);
-    writeCSV!(arr_resBREG_1,bregres_1,Symbol(:BREG_1,TP))
-    println(string("m = ",m,". BREG 1 finished in ", round_exact(bregsol_1.time,2), " sec. 1 norm ", round_exact(bregsol_1.z,3), ", 0 norm ", bregres_1.norm_0, ". Iter: ", bregsol_1.iter));
-    flush(stdout)
+    # time_breg_1 = @elapsed bregsol_1 = breg1norm(ginvInit,eps=5e-1);
+    # bregsol_1.z = getnorm1(bregsol_1.H);
+    # bregsol_1.time = time_breg_1;
+    # bregres_1 = getResultsADMM(inst,bregsol_1);
+    # writeCSV!(arr_resBREG_1,bregres_1,Symbol(:BREG_1,TP))
+    # println(string("m = ",m,". BREG 1 finished in ", round_exact(bregsol_1.time,2), " sec. 1 norm ", round_exact(bregsol_1.z,3), ", 0 norm ", bregres_1.norm_0, ". Iter: ", bregsol_1.iter));
+    # flush(stdout)
     
     # time_admm_21 = @elapsed admmsol_21 = admm21norm(ginvInit);#runADMM21n(V1Dinv,V2,U1,Λ21,TP,false);
     # admmsol_21.z = getnorm21(admmsol_21.H);

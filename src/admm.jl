@@ -212,6 +212,8 @@ function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho
    
 end
 
+
+
 function breg1norm(ginvInit::GinvInit;eps=1e-4,max_iter=5e4,time_limit=7200)
     # initialize timer
     time_start = time_ns()
@@ -251,6 +253,146 @@ function breg1norm(ginvInit::GinvInit;eps=1e-4,max_iter=5e4,time_limit=7200)
     admmsol.z = getnorm1(admmsol.H);
     return admmsol
    
+end
+
+function admm1norm_v2(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho=3.,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    V1,V1Dinv = ginvInit.V1,ginvInit.V1Dinv;
+    V2V2T = ginvInit.V2V2T;
+    Θ = (1/(norm(V1,Inf)))*V1;
+    n,r = size(Θ);
+    rho_inv = 1/rho;
+    iter=0; norm_V1Dinv = norm(V1Dinv);
+    primal_res,dual_res,opt_res = 0.0,0.0,0.0;
+    eps_p,eps_d = 0.0,0.0;
+    Λ = rho_inv*Θ; E = ginvInit.V1Dinv+Λ; 
+    E_old = E; M = Nothing;
+    F,W = zeros(n,m),zeros(n,m);
+    eps_gl = 1e-2;
+    # start admm
+    while true
+        # update Z where P := V2*J with J = (- V1Dinv + E - Λ)
+        P = V2V2T*(E - Λ)
+        # update of E
+        M = V1Dinv + P
+        E,F,W,eps_gl = admm1norm_genLasso(ginvInit,F,M + Λ,W,rho;eps_abs=eps_gl,eps_rel=eps_gl,max_iter=15)
+        # E,F = solveGenLasso(ginvInit,M + Λ,rho);
+        # @show norm(E1-E)
+        # sleep(5)
+        # E = closed_form21n(M + Λ,rho_inv)
+        # Compute residuals
+        res_infeas = M - E
+        # Update P
+        Λ += res_infeas
+        # Stopping criteria
+        primal_res = norm(res_infeas)
+        if stop_limit == :Boyd
+            dual_res = rho*norm(V2'*(E-E_old))
+            eps_p = sqrt(n*r)*eps_abs + eps_rel*maximum([norm(E),norm(P),norm(V1Dinv)])
+            eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*rho*norm(V2'*Λ)
+            E_old = E
+        elseif stop_limit == :OptGap
+            dual_res = rho*norm(V2'*Λ)
+            eps_p = eps_opt,eps_d = eps_opt
+        else
+            error("stop limit not defined correctly")
+        end
+        iter += 1
+        # @show iter, primal_res,dual_res
+        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (primal_res <= eps_p && dual_res <= eps_d)
+            opt_res = abs(getnorm1(M)-rho*tr(Λ'*V1Dinv))
+            break
+        end
+    end
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    admmsol.H = M*U1';
+    admmsol.iter = iter;
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,rho*norm(V2'*Λ),rho*norm(V2'*(E-E_old));
+    admmsol.res_opt = opt_res
+    admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
+    admmsol.z = getnorm1(admmsol.H);
+    return admmsol
+end
+
+
+
+function admm1norm_genLasso(
+            ginvInit::GinvInit,
+            F::Matrix{Float64},
+            Y::Matrix{Float64},
+            W::Matrix{Float64},
+            rho::Float64;
+            eps_abs=1e-2,
+            eps_rel=1e-2,
+            beta=3.,
+            max_iter=1e2,
+            time_limit=7200,
+            stop_limit=:Boyd
+        )
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    m,n,r = ginvInit.m,ginvInit.n,ginvInit.r;
+    U1 = ginvInit.U1;
+    U1U1T = U1*U1';
+    iter=0; 
+    primal_res,dual_res = 0.0,0.0;
+    eps_p,eps_d = 0.0,0.0;
+    F_old = F;
+    beta_rho = beta + rho;
+    beta_rho_inv = 1/beta_rho;
+    C = (rho*beta_rho_inv)*Y*U1';
+    P = Nothing;
+    while true
+        # update E 
+        P = beta_rho_inv*(beta)*(F-W)*U1U1T + C;
+        # P = solveGenLasso_sub1(ginvInit,Y,F,W,rho,beta)
+        # z1 = (rho/2)*norm(Y-P*U1)^2 + (beta/2)*norm(F-W - P)^2
+        # z2 = (rho/2)*norm(Y-P2*U1)^2 + (beta/2)*norm(F-W - P2)^2
+        # @show z1,z2
+        # sleep(3)
+        # update of F
+        F = closed_form1n(P + W,1/beta)
+        # F = solveGenLasso_sub2(ginvInit,P+W,beta)
+        # z1 = norm(F,1) + (beta/2)*norm(F - (P+W))^2
+        # z2 = norm(F2,1) + (beta/2)*norm(F2 - (P+W))^2
+        # @show z1,z2
+        # sleep(5)
+        # Compute residuals
+        res_infeas = P - F
+        primal_res = norm(res_infeas)
+        dual_res = beta*norm((F-F_old)*U1)
+        # Update P
+        W += res_infeas
+        # Stopping criteria
+        if stop_limit == :Boyd
+            eps_p = sqrt(n*m)*eps_abs + eps_rel*maximum([norm(F),norm(P)])
+            eps_d = sqrt(n*r)*eps_abs + eps_rel*beta*norm(W*U1)
+        else
+            error("stop limit not defined correctly")
+        end
+        iter += 1
+        if iter == max_iter || ((time_ns() - time_start)/1e9) >= 7200
+            break
+        end
+        if (primal_res <= eps_p && dual_res <= eps_d)
+            break
+        end
+        # @show iter, primal_res,dual_res
+        # sleep(0.25)
+        F_old = F
+    end
+    # @show iter,eps_abs
+    if iter <= 2 && eps_abs >= 1e-5
+        eps_abs = 0.1*eps_abs;
+    end
+    # E = (beta/beta_rho_inv)*(F-W)*U1 + (rho/beta_rho_inv)*Y;
+    E =F*U1;
+    return E,F,W,eps_abs
 end
 
 function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rho=1,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
