@@ -212,6 +212,65 @@ function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho
    
 end
 
+function admm0norm(ginvInit::GinvInit,n0::Int64;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho=1e4,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    V1,V1DinvU1T = ginvInit.V1,ginvInit.V1DinvU1T;
+    V2V2T = ginvInit.V2V2T;
+    V1U1T,U1U1T = V1*U1',U1*U1';
+    # Θ  = (1/maximum(abs.(V1U1T)))*V1U1T
+    Θ = (1/norm(V1U1T,Inf))*V1U1T;
+    m,r = size(U1)
+    n  = size(V2,1)
+    rho_inv = 1/rho;
+    iter=0; norm_V1DinvU1T = norm(V1DinvU1T);
+    primal_res,dual_res,opt_res = 0.0,0.0,0.0;
+    eps_p,eps_d = 0.0,0.0;
+    Λ = rho_inv*Θ; E = V1DinvU1T + Λ; 
+    E_old = E; H = V1DinvU1T;
+    while true
+       
+        # update of E
+        # @show getnorm0(E,1e-5)
+        E = closed_form0n(H + Λ, n0)
+        # update Z where W := V2*Z*U1' with J = (- G + E - Λ)
+        W = V2V2T*(E - Λ)*U1U1T
+        # update E
+        H = V1DinvU1T + W
+        # @show getnorm0(H,1e-5),n0
+        # sleep(0.25)
+        # E = closed_form1n(H + Λ,rho_inv)
+        # Compute residuals
+        res_infeas = H - E
+        primal_res = norm(res_infeas)
+        # dual_res = rho*norm(V2'*(E-E_old)*U1)
+        # Update P
+        Λ += res_infeas
+        # Stopping criteria
+        @show iter, getnorm0(H,1e-5),primal_res
+       
+        iter += 1
+        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (getnorm0(H,1e-5) <= n0)
+            break
+        end
+        E_old = E
+    end
+    
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    E_diff = E-E_old
+    admmsol.H = H;
+    admmsol.iter = iter;
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,rho*norm(V2'*Λ*U1),rho*norm(V2'*E_diff*U1);
+    admmsol.res_opt = opt_res
+    admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
+    admmsol.z = getnorm1(admmsol.H);
+    return admmsol
+   
+end
+
 
 
 function breg1norm(ginvInit::GinvInit;eps=1e-4,max_iter=5e4,time_limit=7200)
@@ -443,10 +502,10 @@ function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rh
     admmsol.res_opt = opt_res
     admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
     admmsol.z = getnorm21(admmsol.H);
-    return admmsol
+    return admmsol,M,Λ
 end
 
-function admm20norm(ginvInit::GinvInit,ω21::Float64,nzr21::Int64;rho=1,max_iter=1e5,time_limit=7200)
+function admm20norm(ginvInit::GinvInit,ω21::Float64,nzr21::Int64,M_21,Λ_21;rho=1,max_iter=1e4,time_limit=7200)
     # initialize timer
     time_start = time_ns()
     # initialize parameters
@@ -455,16 +514,39 @@ function admm20norm(ginvInit::GinvInit,ω21::Float64,nzr21::Int64;rho=1,max_iter
     V2V2T = ginvInit.V2V2T;
     #@show typeof(V1Dinv)
     n,r = size(V1Dinv);
-    Φ,B = zeros(n,r),V1Dinv
-    rho_inv = 1/rho; iter=0; M = Nothing;
+    Φ,B,M = Λ_21,M_21,M_21;
+    # Φ,B,M = zeros(n,r),V1Dinv,V1Dinv
+    rho_inv = 1/rho; iter=0; #M = Nothing;
     nzr_target = floor(Int64,(1-ω21)*nzr21 + ω21*r)
+    # @show nzr_target
+    # sleep(1)
+    norm_20_old = n;
+    rep_non_red_20 = 0;
     # start admm
     while true
+        # B = closed_form20n(M + Φ,nzr_target)
+        
         # update Z where W := V2*J with J = (- V1DinvU1T + E - Λ)
         W = V2V2T*(B - Φ)
-        # update of B
         M = V1Dinv + W
-        B = closed_form20n(M + Φ,nzr_target)
+        # update of B
+        B = closed_form2120n(M + Φ,rho_inv,nzr_target)
+        # @show iter,
+        iter_norm20=getnorm20(M,1e-4);
+        if iter_norm20 >= norm_20_old
+            rep_non_red_20 += 1;
+        else
+            rep_non_red_20 = 0;
+            norm_20_old = iter_norm20;
+        end
+        if rep_non_red_20 == 100 && norm_20_old > nzr_target
+            rho = 2*rho;
+            rep_non_red_20=0;
+            if rho > 1e8
+                break
+            end
+        end
+        # @show iter, getnorm20(M,1e-4), rho
         # Update P
         Φ += (M - B)
         # Stopping criteria
