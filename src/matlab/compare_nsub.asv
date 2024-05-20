@@ -1,0 +1,15 @@
+m = 100;
+n = 500;
+r = 250;
+dens = 0.25;
+M = 2;
+
+rho=(1/M)^(2/(r+1));
+
+rc=M*rho.^(1:r);
+
+A= full(sprand(m,n,dens,rc));
+
+[C,time] = greedy_light(A,m,n,r,[],1);
+[C2,time_new] = qrGL(A,m,n,r,1);
+time,time_new
