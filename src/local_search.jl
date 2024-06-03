@@ -96,7 +96,12 @@ function LS_det(A,R,C,TP::Symbol)
     H_hat = (A_hat'*A_hat) \ A_hat';
     H = zeros(n,m);
     H[C,:] .= H_hat;
-    return H,time_ls,swaps,det_Ar,C
+    admmsol = SolutionADMM();
+    admmsol.time = time_ls;
+    admmsol.H = H;
+    admmsol.iter = swaps;
+    admmsol.z = det_Ar;
+    return admmsol,C
 end
 
 function LS_21(A,C,TP::Symbol)
@@ -191,15 +196,21 @@ function LS_21(A,C,TP::Symbol)
         end
     end
     # get output
+    
     time_ls21 = (time_ns() - time_start)/1e9;
     # det_Ar = det(A[R,C]);  
     A_hat =  A[:,C];
     H_hat = (A_hat'*A_hat) \ A_hat';
     H = zeros(n,m);
     H[C,:] .= H_hat;
+    admmsol = SolutionADMM();
+    admmsol.time = time_ls21;
+    admmsol.H = H;
+    admmsol.iter = swaps;
+    admmsol.z = getnorm21(admmsol.H);
     # @show getnorm21(H),norm21
     # @show time_ls21
-    return H,time_ls21,swaps
+    return admmsol
 end
 
 function genPlotDetvs21()
