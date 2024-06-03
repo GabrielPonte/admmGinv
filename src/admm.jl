@@ -1,152 +1,3 @@
-# function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-4,rho=1e0,max_iter=1e3,time_limit=7200,stop_limit=:Boyd,adp=1)
-#     # initialize timer
-#     time_start = time_ns()
-#     # initialize parameters
-#     rho_inv = 1/rho; 
-#     U1,V2 = ginvInit.U1,ginvInit.V2;
-#     V1,V1DinvU1T = ginvInit.V1,ginvInit.V1DinvU1T;
-#     U1U1T,V2V2T = U1*U1',ginvInit.V2V2T;
-
-#     Θ0 = (1/maximum(abs.(V1*U1')))*V1*U1'
-#     Θ1 = copy(Θ0); 
-
-#     E0 = V1DinvU1T + Θ0; 
-#     E1 = copy(E0); 
-
-
-#     W0 = V2V2T*(E0 - rho_inv*Θ0)*U1U1T; 
-#     W1 = copy(W0);
-    
-#     E = Nothing
-#     H = Nothing; 
-#     Θ = Nothing;
-#     Θ_hat0 = Nothing;
-#     Θ_hat1 = Nothing; 
-
-#     n,m = size(Θ0);r = size(U1,2)
-    
-#     iter=1; norm_V1DinvU1T = norm(V1DinvU1T);
-#     primal_res,dual_res,opt_res = 0.0,0.0,0.0;
-#     eps_p,eps_d = 0.0,0.0;
-
-#     pres = []; dres = []; mres = [];
-#     rhos = [rho]; objs = []; tols = [];
-
-#     #Λ = rho_inv*Θ;
-#     # Fast ADMM, Nestorov
-#     restart = 0.999;
-#     alpha1 = 1;
-#     # Residual balancing
-#     bs = 2; rs = 0.1;
-#     # Spectral
-#     freq = 2;
-#     minval = 1e-20;
-#     orthval = max(0.2, minval);
-
-#     tol = 1e-3; siter = 1; eiter = 1e5;
-
-#     # start admm
-#     while true
-#         rho_inv = 1/rho;
-#         # update Z where W := V2*J*U1' with J = (- V1DinvU1T + E - Λ)
-#         W = V2V2T*(E1 - rho_inv*Θ1)*U1U1T
-#         # update H
-#         H = V1DinvU1T + W
-#         # update of E
-#         E = closed_form1n(H + rho_inv*Θ1,rho_inv)
-#         # Compute residuals
-#         pres1 = H - E;
-#         dres1 = V2'*(E-E1)*U1;
-#         # Update lagrangian variable
-#         Θ = Θ1 + rho*pres1;
-
-#         # Stopping criteria
-#         push!(pres,norm(pres1)); push!(dres,rho*norm(dres1)); 
-#         push!(mres,rho*pres[iter]^2+rho*norm(E-E1)^2);
-#         push!(objs,getnorm1(H));
-
-#         pres_norm = pres[iter]/max(norm(E),norm(W),norm_V1DinvU1T);
-#         dres_norm = dres[iter]/norm(V2'*Θ*U1);
-#         push!(tols,max(pres_norm, dres_norm));
-
-#         if tols[iter] < tol || iter == max_iter
-#             opt_res = abs(getnorm1(H)-tr(Θ'*V1DinvU1T))
-#             break
-#         end
-
-#         if adp == 2 # Fast ADMM, Nesterov with restart
-
-#             if iter == 1 || mres[iter] < restart*mres[iter-1]
-#                 alpha = (1+sqrt(1+4*alpha1^2))/2;
-#                 E1 = E + (alpha1-1)/alpha*(E-E0);
-#                 Θ1 = Θ + (alpha1-1)/alpha*(Θ-Θ0);
-#                 alpha1 = alpha;
-#                 E0 = deepcopy(E);
-#                 Θ0 = deepcopy(Θ);
-#                 E1 = deepcopy(E); #previous Bv
-#             else
-#                 alpha = 1; alpha1 = 1;
-#                 E1 = deepcopy(E0);
-#                 Θ1 = deepcopy(Θ0);
-#                 pres[iter] = pres[iter-1];
-#                 dres[iter] = dres[iter-1];
-#                 mres[iter] = mres[iter-1];
-#             end
-
-#         elseif adp == 3 # Residual balancing
-
-#             if iter>siter && iter < eiter
-#                 if dres[iter] < pres[iter] * rs #dual residual is smaller, need large rho
-#                     rho = bs * rho;
-#                 elseif pres[iter] < dres[iter] * rs #primal residual is smaller, need small rho
-#                     rho = rho/bs;
-#                 end
-#             end 
-
-#         elseif adp == 4 # Normalized residual balancing
-
-#             if iter>siter && iter < eiter
-#                 if dres_norm < pres_norm * rs #dual residual is smaller, need large rho
-#                     rho = bs * rho;
-#                 elseif pres_norm < dres_norm * rs #primal residual is smaller, need small rho
-#                     rho = rho/bs;
-#                 end
-#             end 
-            
-#         elseif adp == 5  # Spectral penalty
-#             if iter == 1
-#                 Θ0 = deepcopy(Θ);
-#                 Θ_hat0 = Θ1 + rho*(H-E1);
-#                 E0 = deepcopy(E);
-#                 W0 = deepcopy(W);
-#             elseif mod(iter,freq)==0 && iter>siter && iter < eiter
-#                 Θ_hat = Θ1 + rho*(H-E1);
-#                 rho = adaptive_update(rho,W,W0,Θ_hat,Θ_hat0,E,E0,Θ,Θ0,orthval,minval)
-#                 # record for next estimation
-#                 Θ0 = deepcopy(Θ);
-#                 Θ_hat0 = deepcopy(Θ_hat);
-#                 E0 = deepcopy(E);
-#                 W0 = deepcopy(W);
-#             end
-#         end
-#         push!(rhos,rho);
-#         E1 = deepcopy(E); Θ1 = deepcopy(Θ);iter += 1;
-
-#     end
-#     #plot(collect(1:length(tols)),tols)
-#     #plot(collect(1:length(objs)),objs)
-#     admmsol = SolutionADMM();
-#     admmsol.time = (time_ns() - time_start)/1e9;
-#     admmsol.H = H;
-#     admmsol.iter = iter;
-#     admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,norm(V2'*Θ*U1),rho*norm(V2'*(E-E1)*U1);
-#     admmsol.res_opt = opt_res
-#     admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
-#     admmsol.z = getnorm1(admmsol.H);
-#     return admmsol,pres,dres,tols,objs,rhos
-# end
-
-
 function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho=3,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
     # initialize timer
     time_start = time_ns()
@@ -212,6 +63,243 @@ function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho
    
 end
 
+function admm0norm(ginvInit::GinvInit,n0::Int64;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho=1e4,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    V1,V1DinvU1T = ginvInit.V1,ginvInit.V1DinvU1T;
+    V2V2T = ginvInit.V2V2T;
+    V1U1T,U1U1T = V1*U1',U1*U1';
+    # Θ  = (1/maximum(abs.(V1U1T)))*V1U1T
+    Θ = (1/norm(V1U1T,Inf))*V1U1T;
+    m,r = size(U1)
+    n  = size(V2,1)
+    rho_inv = 1/rho;
+    iter=0; norm_V1DinvU1T = norm(V1DinvU1T);
+    primal_res,dual_res,opt_res = 0.0,0.0,0.0;
+    eps_p,eps_d = 0.0,0.0;
+    Λ = rho_inv*Θ; E = V1DinvU1T + Λ; 
+    E_old = E; H = V1DinvU1T;
+    while true
+       
+        # update of E
+        # @show getnorm0(E,1e-5)
+        E = closed_form0n(H + Λ, n0)
+        # update Z where W := V2*Z*U1' with J = (- G + E - Λ)
+        W = V2V2T*(E - Λ)*U1U1T
+        # update E
+        H = V1DinvU1T + W
+        # @show getnorm0(H,1e-5),n0
+        # sleep(0.25)
+        # E = closed_form1n(H + Λ,rho_inv)
+        # Compute residuals
+        res_infeas = H - E
+        primal_res = norm(res_infeas)
+        # dual_res = rho*norm(V2'*(E-E_old)*U1)
+        # Update P
+        Λ += res_infeas
+        # Stopping criteria
+        @show iter, getnorm0(H,1e-5),primal_res
+       
+        iter += 1
+        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (getnorm0(H,1e-5) <= n0)
+            break
+        end
+        E_old = E
+    end
+    
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    E_diff = E-E_old
+    admmsol.H = H;
+    admmsol.iter = iter;
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,rho*norm(V2'*Λ*U1),rho*norm(V2'*E_diff*U1);
+    admmsol.res_opt = opt_res
+    admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
+    admmsol.z = getnorm1(admmsol.H);
+    return admmsol
+   
+end
+
+
+
+function breg1norm(ginvInit::GinvInit;eps=1e-4,max_iter=5e4,time_limit=7200)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    m,n,r = ginvInit.m,ginvInit.n,ginvInit.r;
+    V1V1T,U2U2T = ginvInit.V1*ginvInit.V1',ginvInit.U2*ginvInit.U2'
+    DinvU1T = diagm(ginvInit.Dinv)*ginvInit.U1';
+    V1DinvU1T = ginvInit.V1DinvU1T;
+    tau = 2e-1; 
+    mu = 5;
+    iter=0; 
+    v = tau*V1DinvU1T; 
+    E = Nothing;
+    primal_res = 0.0;
+    while true
+        E = mu*closed_form1n(v,1)
+        v = v + tau*(V1DinvU1T - (V1V1T*E + E*U2U2T))
+        iter += 1
+        if iter == max_iter || ((time_ns() - time_start)/1e9) >= 7200
+            break
+        end
+        primal_res = norm([ginvInit.V1'*E - DinvU1T zeros(r,m-r); zeros(n,m) E*ginvInit.U2])
+
+        #primal_res = norm(ginvInit.V1'*E - DinvU1T)^2 + norm(E*ginvInit.U2)^2;
+        # @show iter,primal_res
+        if primal_res <= eps 
+            break
+        end
+    end
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    admmsol.H = V1DinvU1T + ginvInit.V2V2T*E*ginvInit.U1*ginvInit.U1';
+    admmsol.iter = iter;
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,0.0,0.0;
+    admmsol.res_opt = 0.0;
+    admmsol.eps_p,admmsol.eps_d = 0.0,0.0; 
+    admmsol.z = getnorm1(admmsol.H);
+    return admmsol
+   
+end
+
+function admm1norm_v2(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho=3.,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    U1U1T = U1*U1';
+    V1,V1Dinv = ginvInit.V1,ginvInit.V1Dinv;
+    V2V2T = ginvInit.V2V2T;
+    Θ = (1/(norm(V1,Inf)))*V1;
+    n,r = size(Θ);
+    rho_inv = 1/rho;
+    iter=0; norm_V1Dinv = norm(V1Dinv);
+    primal_res,dual_res,opt_res = 0.0,0.0,0.0;
+    eps_p,eps_d = 0.0,0.0;
+    Λ = rho_inv*Θ; E = ginvInit.V1Dinv+Λ; 
+    E_old = E; M = Nothing;
+    F,W = zeros(n,m),zeros(n,m);
+    eps_gl = 1e-3;
+    # start admm
+    while true
+        # update Z where P := V2*J with J = (- V1Dinv + E - Λ)
+        P = V2V2T*(E - Λ)
+        # update of E
+        M = V1Dinv + P
+        # E = closed_form1n((M + Λ),rho_inv);
+        # E = closed_form1n((M + Λ)*U1',rho_inv)*U1U1T*U1;
+        # @show norm(E*U1',1)
+        E,F,W,eps_gl = admm1norm_genLasso(ginvInit,F,M + Λ,W,U1U1T,rho;eps_abs=eps_gl,eps_rel=eps_gl,max_iter=1e2,beta=3.0)
+        # E,F = solveGenLasso(ginvInit,M + Λ,rho);
+        # @show norm(E1-E)
+        # sleep(5)
+        # E = closed_form21n(M + Λ,rho_inv)
+        # Compute residuals
+        res_infeas = M - E
+        # Update P
+        Λ += res_infeas
+        # Stopping criteria
+        primal_res = norm(res_infeas)
+        if stop_limit == :Boyd
+            dual_res = rho*norm(V2'*(E-E_old))
+            eps_p = sqrt(n*r)*eps_abs + eps_rel*maximum([norm(E),norm(P),norm(V1Dinv)])
+            eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*rho*norm(V2'*Λ)
+            E_old = E
+        elseif stop_limit == :OptGap
+            dual_res = rho*norm(V2'*Λ)
+            eps_p = eps_opt;eps_d = eps_opt
+        else
+            error("stop limit not defined correctly")
+        end
+        iter += 1
+        # @show iter, primal_res,dual_res
+        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (primal_res <= eps_p && dual_res <= eps_d)
+            opt_res = abs(getnorm1(M)-rho*tr(Λ'*V1Dinv))
+            break
+        end
+    end
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    admmsol.H = M*U1';
+    admmsol.iter = iter;
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,rho*norm(V2'*Λ),rho*norm(V2'*(E-E_old));
+    admmsol.res_opt = opt_res
+    admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
+    admmsol.z = getnorm1(admmsol.H);
+    return admmsol
+end
+
+
+
+function admm1norm_genLasso(
+            ginvInit::GinvInit,
+            F::Matrix{Float64},
+            Y::Matrix{Float64},
+            W::Matrix{Float64},
+            U1U1T::Matrix{Float64},
+            rho::Float64;
+            eps_abs=1e-1,
+            eps_rel=1e-1,
+            beta=3.,
+            max_iter=1e2,
+            time_limit=7200,
+            stop_limit=:Boyd
+        )
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    m,n,r = ginvInit.m,ginvInit.n,ginvInit.r;
+    U1 = ginvInit.U1;
+    # U1U1T = U1*U1';
+    iter=0; 
+    primal_res,dual_res = 0.0,0.0;
+    eps_p,eps_d = 0.0,0.0;
+    # F_old = F;
+    beta = rho;
+    beta_rho = beta + rho;
+    beta_rho_inv = 1/beta_rho;
+    C = (rho*beta_rho_inv)*Y*U1';
+    P = Nothing;
+    while true
+        # update E 
+        P = beta_rho_inv*(beta)*(F-W)*U1U1T + C;
+        # update of F
+        F = closed_form1n(P + W,1/beta)
+        # Compute residuals
+        res_infeas = P - F
+        primal_res = norm(res_infeas)
+        #dual_res = beta*norm((F-F_old)*U1)
+        # Update P
+        W += res_infeas
+        # Stopping criteria
+        # if stop_limit == :Boyd
+        #     eps_p = sqrt(n*m)*eps_abs + eps_rel*maximum([norm(F),norm(P)])
+        #     eps_d = sqrt(n*r)*eps_abs + eps_rel*beta*norm(W*U1)
+        # else
+        #     error("stop limit not defined correctly")
+        # end
+        iter += 1
+        if iter == max_iter || ((time_ns() - time_start)/1e9) >= 7200
+            break
+        end
+        if (primal_res <= eps_abs) #&& dual_res <= eps_d)
+            break
+        end
+        # @show iter, primal_res,dual_res
+        # F_old = F
+    end
+    # @show iter,eps_abs
+    if iter <= 5 && eps_abs >= 1e-5
+        eps_abs = 0.9*eps_abs;
+    end
+    # E = (beta/beta_rho_inv)*(F-W)*U1 + (rho/beta_rho_inv)*Y;
+    E =F*U1;
+    return E,F,W,eps_abs
+end
+
 function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rho=1,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
     # initialize timer
     time_start = time_ns()
@@ -265,10 +353,10 @@ function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rh
     admmsol.res_opt = opt_res
     admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
     admmsol.z = getnorm21(admmsol.H);
-    return admmsol
+    return admmsol,M,Λ
 end
 
-function admm20norm(ginvInit::GinvInit,ω21::Float64,nzr21::Int64;rho=1,max_iter=1e5,time_limit=7200)
+function admm20norm(ginvInit::GinvInit,ω21::Float64,nzr21::Int64,M_21,Λ_21;eps_abs=1e-4,eps_rel=1e-4,rho=1e4,max_iter=1e4,time_limit=7200)
     # initialize timer
     time_start = time_ns()
     # initialize parameters
@@ -277,23 +365,154 @@ function admm20norm(ginvInit::GinvInit,ω21::Float64,nzr21::Int64;rho=1,max_iter
     V2V2T = ginvInit.V2V2T;
     #@show typeof(V1Dinv)
     n,r = size(V1Dinv);
-    Φ,B = zeros(n,r),V1Dinv
-    rho_inv = 1/rho; iter=0; M = Nothing;
+    Φ,B,M = Λ_21,M_21,M_21;
+    B_old = copy(B)
+    # Φ,B,M = zeros(n,r),V1Dinv,V1Dinv
+    rho_inv = 1/rho; iter=0; eps = 1e-4;#M = Nothing;
     nzr_target = floor(Int64,(1-ω21)*nzr21 + ω21*r)
+    flag21 = true;
+    c_val = 2; prep = 0; primal_res_old = 0.0; n20_min = Inf;
+    primal_res = Inf;
+    primal_res_min = Inf;
     # start admm
     while true
+        rho_inv = 1/rho;
         # update Z where W := V2*J with J = (- V1DinvU1T + E - Λ)
-        W = V2V2T*(B - Φ)
-        # update of B
+        W = V2V2T*(B - rho_inv*Φ)
         M = V1Dinv + W
-        B = closed_form20n(M + Φ,nzr_target)
+        # update of B
+        if flag21
+            B = closed_form2120n(M + rho_inv*Φ,rho_inv,nzr_target)
+        else
+            B = closed_form20n(M + rho_inv*Φ,nzr_target)
+        end
+        # output = iter, getnorm20(M,1e-5),getnorm21(M), nzr_target
+        # 
+        res_infeas = M - B
+        primal_res = norm(res_infeas)
+        # dual_res = rho*norm(V2'*(B-B_old))
+        # output = iter,round(primal_res,digits=5),round(dual_res,digits=3),getnorm20(M,1e-5),round(getnorm21(M),digits=4), nzr_target, trunc(Int64,rho), prep
+        # @show output
         # Update P
-        Φ += (M - B)
+        Φ += rho*res_infeas
         # Stopping criteria
         iter += 1
-        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (getnorm20(M,1e-5) <= nzr_target)
+        n20 = getnorm20(M,1e-5)    
+        if (primal_res) >= primal_res_min && flag21 && primal_res >= 5e-4
+            prep += 1;
+            if prep >= 250
+                rho *= 1.25;
+                c_val = 2;
+                prep = 0;
+                @error("rho was increased.")
+            end
+        else
+            primal_res_min = primal_res
+            prep = 0;
+        end
+        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200
             break
         end
+        if (n20 <= nzr_target && primal_res <= 1e-4 && flag21)
+            dual_res = rho*norm(V2'*(B-B_old))
+            eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*norm(V2'*Φ)
+            if dual_res <= eps_d
+                break
+            else 
+                if c_val >= 1.25
+                    while true
+                        W_try = V2V2T*(B - (c_val/rho)*Φ)
+                        M_try = V1Dinv + W_try
+                        B_try = closed_form2120n(M_try + (c_val/rho)*Φ,(c_val/rho),nzr_target)
+                        if norm((M_try - B_try)) <= 1e-4
+                            # @show c_val
+                            rho /= c_val
+                            # n20_min = Inf
+                            # sleep(1)
+                            break
+                        else
+                            if c_val >= 1.2
+                                c_val -= 0.1
+                            else
+                                break
+                            end
+                        end
+                    end
+                end
+
+
+            end
+        end
+        if n20 <= nzr_target && !flag21
+            flag21 = true;
+            # @show iter
+            # sleep(2)
+            iter = 0;
+        end
+        B_old = B;
+        primal_res_old = primal_res
+        # n20_old = n20;
+    end
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    admmsol.H = M*U1';
+    admmsol.iter = iter;
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,rho*norm(V2'*(B-B_old)),rho*norm(V2'*(B-B_old));
+    admmsol.z = getnorm21(admmsol.H);
+    return admmsol
+end
+
+function admm20norm_updt(ginvInit::GinvInit,ω21::Float64,nzr21::Int64,M_21,Λ_21;eps_abs=1e-3,eps_rel=1e-3,rho=1,mu=5,tau=2,max_iter=1e4,time_limit=7200)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    V1Dinv = ginvInit.V1Dinv;
+    V2V2T = ginvInit.V2V2T;
+    #@show typeof(V1Dinv)
+    n,r = size(V1Dinv);
+    Φ,B,M = rho*Λ_21,M_21,M_21;
+    B_old = copy(B);
+    # Φ,B,M = zeros(n,r),V1Dinv,V1Dinv
+    rho_inv = 1/rho; iter=0; #M = Nothing;
+    nzr_target = floor(Int64,(1-ω21)*nzr21 + ω21*r)
+    # @show nzr_target
+    # sleep(1)
+    norm_V1Dinv = norm(V1Dinv)
+    # start admm
+    while true
+        rho_inv = 1/rho;
+        # update Z where W := V2*J with J = (- V1DinvU1T + E - Λ)
+        W = V2V2T*(B - rho_inv*Φ)
+        M = V1Dinv + W
+        # update of B
+        B = closed_form2120n(M + rho_inv*Φ,rho_inv,nzr_target)
+        # Compute residuals
+        res_infeas = M - B
+        # Update P
+        Φ += rho*res_infeas
+        # Stopping criteria
+        primal_res = norm(res_infeas)
+        dual_res = rho*norm(V2'*(B-B_old))
+        eps_p = sqrt(n*r)*eps_abs + eps_rel*maximum([norm(B),norm(W),norm_V1Dinv])
+        eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*norm(V2'*Φ)
+        B_old = B
+        iter += 1
+        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (primal_res <= eps_p && dual_res <= eps_d)
+            opt_res = 0.0
+            break
+        end
+        if primal_res > 10*dual_res
+            rho = tau*rho;
+        elseif dual_res > 10*primal_res
+            rho = rho/tau;
+        end
+        primal_res = round(primal_res,digits=3);
+        dual_res = round(dual_res,digits=3);
+        # rho = round(rho,digits=3);
+        @show iter,primal_res,dual_res,rho
+        @show getnorm20(M,1e-4)
+        # sleep(10)
     end
     admmsol = SolutionADMM();
     admmsol.time = (time_ns() - time_start)/1e9;
@@ -301,6 +520,234 @@ function admm20norm(ginvInit::GinvInit,ω21::Float64,nzr21::Int64;rho=1,max_iter
     admmsol.iter = iter;
     admmsol.z = getnorm21(admmsol.H);
     return admmsol
+end
+
+function admm20norm_updt2(ginvInit::GinvInit,ω21::Float64,nzr21::Int64,M_21,Λ_21;eps_abs=1e-7,eps_rel=1e-7,rho=1,mu=10,tau=2,max_iter=1e4,time_limit=7200)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    V1Dinv = ginvInit.V1Dinv;
+    V2V2T = ginvInit.V2V2T;
+    #@show typeof(V1Dinv)
+    n,r = size(V1Dinv);
+    Φ,B,M = rho*Λ_21,M_21,M_21;
+    B_old = copy(B);
+    Φ0,B0,M0 = rho*Λ_21,M_21,M_21;
+    Φ1,B1,M1 = rho*Λ_21,M_21,M_21;
+    W0 = Nothing;Φ_hat0=Nothing
+    norm_V1Dinv = norm(V1Dinv);
+    # Φ,B,M = zeros(n,r),V1Dinv,V1Dinv
+    rho_inv = 1/rho; iter=0; #M = Nothing;
+    nzr_target = floor(Int64,(1-ω21)*nzr21 + ω21*r)
+    # @show nzr_target
+    # sleep(1)
+    freq = 2;
+    minval = 1e-20;
+    orthval = max(0.1, minval);
+    # start admm
+    while true
+        rho_inv = 1/rho;
+        # update Z where W := V2*J with J = (- V1DinvU1T + E - Λ)
+        W = V2V2T*(B1 - rho_inv*Φ1)
+        M = V1Dinv + W
+        # update of B
+        B = closed_form2120n(M + rho_inv*Φ1,rho_inv,nzr_target)
+        # Compute residuals
+        res_infeas = M - B
+        # Update P
+        Φ = Φ1 + rho*res_infeas
+        # Stopping criteria
+        primal_res = norm(res_infeas)
+        dual_res = rho*norm(V2'*(B-B_old))
+        eps_p = sqrt(n*r)*eps_abs + eps_rel*maximum([norm(B),norm(W),norm_V1Dinv])
+        eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*norm(V2'*Φ)
+        B_old = B
+        iter += 1
+        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (primal_res <= eps_p && dual_res <= eps_d)
+            opt_res = 0.0
+            break
+        end
+        if iter == 1 
+            Φ0 = deepcopy(Φ);
+            Φ_hat0 = Φ1 + rho*(M-B1);
+            B0 = deepcopy(B);
+            W0 = deepcopy(W);
+        elseif mod(iter,freq)==0 #&& iter>siter && iter < eiter
+            Φ_hat = Φ1 + rho*(M-B1);
+            rho = adaptive_update(rho,W,W0,Φ_hat,Φ_hat0,B,B0,Φ,Φ0,orthval,minval)
+            # record for next estimation
+            Φ0 = deepcopy(Φ);
+            Φ_hat0 = deepcopy(Φ_hat);
+            B0 = deepcopy(B);
+            W0 = deepcopy(W);
+        end
+        @show iter,primal_res,dual_res
+        @show iter,rho,getnorm20(M,1e-4)
+        B1 = deepcopy(B);
+        Φ1 = deepcopy(Φ);
+    end
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    admmsol.H = M*U1';
+    admmsol.iter = iter;
+    admmsol.z = getnorm21(admmsol.H);
+    return admmsol
+end
+
+function admm2120spec(ginvInit::GinvInit,ω21::Float64,nzr21::Int64,M_21,Λ_21;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-4,rho=1e0,max_iter=1e3,time_limit=7200,stop_limit=:Boyd,adp=1)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    rho_inv = 1/rho; 
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    m,r = size(U1)
+    n  = size(V2,1)
+    V1,V1DinvU1T = ginvInit.V1,ginvInit.V1DinvU1T;
+    U1U1T,V2V2T = U1*U1',ginvInit.V2V2T;
+    V1Dinv = ginvInit.V1Dinv;
+
+    Θ0 = rho*Λ_21;
+    Θ1 = copy(Θ0); 
+
+    E0 = M_21; 
+    E1 = copy(E0); 
+
+    W0 = M_21; 
+    W1 = copy(W0);
+
+    M0 = Nothing;
+    
+    E = Nothing
+    H = Nothing; 
+    Θ = Nothing;
+    Θ_hat0 = Nothing;
+    Θ_hat1 = Nothing; 
+
+    iter=0;
+    nzr_target = floor(Int64,(1-ω21)*nzr21 + ω21*r)
+
+    n,m = size(Θ0);r = size(U1,2)
+    
+    iter=1; norm_V1Dinv = norm(V1Dinv);
+    primal_res,dual_res,opt_res = 0.0,0.0,0.0;
+    eps_p,eps_d = 0.0,0.0;
+
+    pres = []; dres = []; mres = [];
+    rhos = [rho]; objs = []; tols = [];
+
+    #Λ = rho_inv*Θ;
+    # Fast ADMM, Nestorov
+    restart = 0.999;
+    alpha1 = 1;
+    # Residual balancing
+    bs = 2; rs = 0.1;
+    # Spectral
+    freq = 2;
+    minval = 1e-20;
+    orthval = max(0.2, minval);
+
+    tol = 1e-3; siter = 1; eiter = 1e5;
+    # start admm
+    while true
+        rho_inv = 1/rho;
+        # update Z where W := V2*J*U1' with J = (- V1DinvU1T + E - Λ)
+        W = V2V2T*(E1 - rho_inv*Θ1)
+        # update H
+        M = V1Dinv + W
+        # update of E
+        E = closed_form2120n(M + rho_inv*Θ1,rho_inv,nzr_target)
+        # Compute residuals
+        pres1 = M - E;
+        dres1 = V2'*(E-E1);
+        # Update lagrangian variable
+        Θ = Θ1 + rho*pres1;
+
+        # Stopping criteria
+        push!(pres,norm(pres1)); push!(dres,rho*norm(dres1)); 
+        push!(mres,rho*pres[iter]^2+rho*norm(E-E1)^2);
+        push!(objs,getnorm21(M*U1'));
+
+        pres_norm = pres[iter]/max(norm(E),norm(W),norm_V1Dinv);
+        dres_norm = dres[iter]/norm(V2'*Θ);
+        push!(tols,max(pres_norm, dres_norm));
+
+        if tols[iter] < tol || iter == max_iter
+            opt_res = 0.0
+            M0 = M;
+            break
+        end
+
+        if adp == 2 # Fast ADMM, Nesterov with restart
+
+            if iter == 1 || mres[iter] < restart*mres[iter-1]
+                alpha = (1+sqrt(1+4*alpha1^2))/2;
+                E1 = E + (alpha1-1)/alpha*(E-E0);
+                Θ1 = Θ + (alpha1-1)/alpha*(Θ-Θ0);
+                alpha1 = alpha;
+                E0 = deepcopy(E);
+                Θ0 = deepcopy(Θ);
+                E1 = deepcopy(E); #previous Bv
+            else
+                alpha = 1; alpha1 = 1;
+                E1 = deepcopy(E0);
+                Θ1 = deepcopy(Θ0);
+                pres[iter] = pres[iter-1];
+                dres[iter] = dres[iter-1];
+                mres[iter] = mres[iter-1];
+            end
+
+        elseif adp == 3 # Residual balancing
+
+            if iter>siter && iter < eiter
+                if dres[iter] < pres[iter] * rs #dual residual is smaller, need large rho
+                    rho = bs * rho;
+                elseif pres[iter] < dres[iter] * rs #primal residual is smaller, need small rho
+                    rho = rho/bs;
+                end
+            end 
+
+        elseif adp == 4 # Normalized residual balancing
+
+            if iter>siter && iter < eiter
+                if dres_norm < pres_norm * rs #dual residual is smaller, need large rho
+                    rho = bs * rho;
+                elseif pres_norm < dres_norm * rs #primal residual is smaller, need small rho
+                    rho = rho/bs;
+                end
+            end 
+            
+        elseif adp == 5  # Spectral penalty
+            if iter == 1
+                Θ0 = deepcopy(Θ);
+                Θ_hat0 = Θ1 + rho*(M-E1);
+                E0 = deepcopy(E);
+                W0 = deepcopy(W);
+            elseif mod(iter,freq)==0 && iter>siter && iter < eiter
+                Θ_hat = Θ1 + rho*(M-E1);
+                rho = adaptive_update(rho,W,W0,Θ_hat,Θ_hat0,E,E0,Θ,Θ0,orthval,minval)
+                # record for next estimation
+                Θ0 = deepcopy(Θ);
+                Θ_hat0 = deepcopy(Θ_hat);
+                E0 = deepcopy(E);
+                W0 = deepcopy(W);
+            end
+        end
+        push!(rhos,rho);
+        E1 = deepcopy(E); Θ1 = deepcopy(Θ);iter += 1;
+
+    end
+    #plot(collect(1:length(tols)),tols)
+    #plot(collect(1:length(objs)),objs)
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    admmsol.iter = iter;
+    admmsol.H = M0*U1';
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,norm(V2'*Θ),rho*norm(V2'*(E-E1));
+    admmsol.res_opt = opt_res
+    admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
+    admmsol.z = getnorm21(admmsol.H);
+    return admmsol,pres,dres,tols,objs,rhos
 end
 
 
@@ -556,6 +1003,9 @@ function runADMM20n(V1Dinv,V2,U1,nzr21,w21::Float64,PLT::Bool)
     admmsol.eps_p,admmsol.eps_d = 1e-5,1e-5; 
     return admmsol
 end
+
+
+
 
 function runADMM210nv3(V1Dinv,V2,U1,Θ,nzr_target)
     TP = :ML

@@ -6,7 +6,11 @@ mutable struct GinvInst
 end
 
 mutable struct GinvInit
+    m::Int64
+    n::Int64
+    r::Int64
     U1::Matrix{Float64}
+    U2::Matrix{Float64}
     V1::Matrix{Float64}
     V2::Matrix{Float64}
     Dinv::Vector{Float64}

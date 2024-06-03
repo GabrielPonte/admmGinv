@@ -26,6 +26,50 @@ function solve1grb(inst::GinvInst,ginvInit::GinvInit)
     return bsol
 end
 
+function solveGenLasso(ginvInit::GinvInit,Y::Matrix{Float64},rho::Float64)
+    model = Model(Gurobi.Optimizer);
+    set_silent(model)
+    @variable(model,E[1:n,1:r]);
+    @variable(model, t);
+    EU1T= E*ginvInit.U1';
+    @constraint(model, [t; vec(EU1T)] in MOI.NormOneCone(1 + length(vec(EU1T))));
+    EY = E-Y;
+    @objective(model,Min,t + (rho/2)*sum(EY[i,j]^2 for i =(1:n),j=(1:r)));
+    optimize!(model);
+    E = value.(E);
+    F = E*ginvInit.U1';
+    return E,F
+end
+
+function solveGenLasso_sub1(ginvInit::GinvInit,Y::Matrix{Float64},F::Matrix{Float64},W::Matrix{Float64},rho::Float64,beta::Float64)
+    m,n,r=ginvInit.m,ginvInit.n,ginvInit.r;
+    model = Model(Gurobi.Optimizer);
+    set_silent(model)
+    @variable(model,E[1:n,1:r]);
+    @variable(model, t);
+    EU1TFW= E*ginvInit.U1'-F+W;
+    EY = E-Y;
+    @objective(model,Min, (rho/2)*sum(EY[i,j]^2 for i =(1:n),j=(1:r)) + (beta/2)*sum(EU1TFW[i,j]^2 for i =(1:n),j=(1:m)));
+    optimize!(model);
+    E = value.(E);
+    P = E*ginvInit.U1';
+    return P
+end
+
+function solveGenLasso_sub2(ginvInit::GinvInit,M::Matrix{Float64},beta::Float64)
+    m,n,r=ginvInit.m,ginvInit.n,ginvInit.r;
+    model = Model(Gurobi.Optimizer);
+    set_silent(model)
+    @variable(model,F[1:n,1:m]);
+    @variable(model, t);
+    @constraint(model, [t; vec(F)] in MOI.NormOneCone(1 + length(vec(F))));
+    EM = F-M;
+    @objective(model,Min,t + (beta/2)*sum(EM[i,j]^2 for i =(1:n),j=(1:m)));
+    optimize!(model);
+    F = value.(F);
+    return F
+end
+
 function solve1_not_eff_grb(inst::GinvInst)
     A = inst.A;
     m,n,r = inst.m,inst.n,inst.r;

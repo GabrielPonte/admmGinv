@@ -1,13 +1,14 @@
 function getInitialInfoGinv(inst::GinvInst)
+    m,n,r = inst.m,inst.n,inst.r;
     U,Σ,V = svd(inst.A,full=true);
     D = Σ[1:inst.r];
     Dinv = 1 ./ D;
-    U1 = U[:,1:inst.r];
+    U1 = U[:,1:inst.r]; U2 = U[:,inst.r+1:inst.m];
     V1,V2 = V[:,1:inst.r],V[:,inst.r+1:inst.n];
     V1Dinv = V1*SA.spdiagm(Dinv);
     V1DinvU1T = V1Dinv*U1';
     V2V2T = V2*V2';
-    ginvInit = GinvInit(U1,V1,V2,Dinv,V1Dinv,V1DinvU1T,V2V2T);
+    ginvInit = GinvInit(m,n,r,U1,U2,V1,V2,Dinv,V1Dinv,V1DinvU1T,V2V2T);
     return ginvInit
     
     
