@@ -22,17 +22,13 @@ function closed_form2120n(Y,rho_inv,n20)
     # Compute norms of each row of Y
     norm_rows = [norm(Y[i, :]) for i in axes(Y,1)]
     # Compute norms of each row of Y directly within the condition
-     
     row_idx0 = partialsortperm(norm_rows, 1:n20, rev=true);
-    # @show  rho_inv
     last_idx = findlast(norm_rows[row_idx0] .> rho_inv);
     if isnothing(last_idx)
         row_idx = [];
     else
         row_idx  = row_idx0[(1:last_idx)];
     end
-
-    # row_idx = rho_inv .< norm_rows[row_idx0] 
     # Compute the multiplication factor for selected rows
     mult_factor = (norm_rows[row_idx] .- rho_inv) ./ norm_rows[row_idx]
     # Multiply the factors of the selected rows of Y and assign to E
@@ -49,22 +45,5 @@ function closed_form20n(Y, n20)
     row_idx = partialsortperm(norm_rows, 1:n20, rev=true)
     # Assign rows of Y to E based on row_idx
     @views E[row_idx, :] .= Y[row_idx, :]
-    return E
-end
-
-function closed_form0n(Y, n0)
-    # Initialize E with zeros
-    m,n = size(Y);
-    vec_Y = vec(Y);
-    E = zeros(eltype(Y), length(vec_Y))
-    # Compute norms of each row of Y
-    # norm_rows = [norm(Y[i, :]) for i in axes(Y,1)]
-    # Get indices of top n20 rows based on norm_rows
-    idxs = partialsortperm(vec_Y, 1:n0, rev=true)
-
-    # Assign rows of Y to E based on row_idx
-    E[idxs] .= vec_Y[idxs]
-    E = reshape(E,m,n);
-
     return E
 end

@@ -71,23 +71,6 @@ mutable struct SolutionADMM
     SolutionADMM() = new()
 end
 
-mutable struct SolutionExtendedADMM
-    z::Float64
-    iter::Int64
-    time::Float64
-    H::Matrix{Float64}
-    res_cpE::Float64
-    res_cdE::Float64
-    res_cpB::Float64
-    res_cdB::Float64
-    eps_pE::Float64
-    eps_dE::Float64
-    eps_pB::Float64
-    eps_dB::Float64
-
-    SolutionExtendedADMM() = new()
-end
-
 mutable struct GinvResultSolver
     m::Int64
     n::Int64
@@ -131,12 +114,12 @@ mutable struct GinvResultADMM
     r::Int64
     objval::Float64
     NZC::Int64
-    NZR::Int64
-    norm_0::Int64
     norm_1::Float64
+    norm_0::Int64
     norm_21::Float64
-    iter::Int64
+    norm_20::Int64
     time::Float64
+    iter::Int64
     norm_fro::Float64
     res_pri::Float64
     res_dual::Float64
@@ -157,77 +140,20 @@ mutable struct GinvResultADMM
 
     GinvResultADMM(
         m,n,r,objval,
-        NZC,NZR,norm_0,norm_1,norm_21,iter,time,norm_fro,
+        NZC,norm_1,norm_0,norm_21,norm_20,time,iter,norm_fro,
         res_pri,res_dual,res_d_ML,res_opt,eps_p,eps_d,
         bool_p1,bool_p2,bool_p3,bool_p4,
         p1,p2,p3,p4
     ) = new(
         m,n,r,objval,
-        NZC,NZR,norm_0,norm_1,norm_21,iter,time,norm_fro,
+        NZC,norm_1,norm_0,norm_21,norm_20,time,iter,norm_fro,
         res_pri,res_dual,res_d_ML,res_opt,eps_p,eps_d,
         bool_p1,bool_p2,bool_p3,bool_p4,
         p1,p2,p3,p4
     )
 end
 
-mutable struct GinvResultExtendedADMM
-    m::Int64
-    n::Int64
-    r::Int64
-    objval::Float64
-    NZC::Int64
-    NZR::Int64
-    norm_0::Int64
-    norm_1::Float64
-    norm_21::Float64
-    iter::Int64
-    time::Float64
-    norm_fro::Float64
-    res_cpE::Float64
-    res_cdE::Float64
-    res_cpB::Float64
-    res_cdB::Float64
-    eps_pE::Float64
-    eps_dE::Float64
-    eps_pB::Float64
-    eps_dB::Float64
-    bool_p1::Bool
-    bool_p2::Bool
-    bool_p3::Bool
-    bool_p4::Bool
-    p1::Float64
-    p2::Float64
-    p3::Float64
-    p4::Float64
 
-    GinvResultExtendedADMM() = new()
-
-    GinvResultExtendedADMM(
-        m,n,r,objval,
-        NZC,NZR,norm_0,norm_1,norm_21,iter,time,norm_fro,
-        res_cpE,res_cdE,res_cpB,res_cdB,eps_pE,eps_dE,eps_pB,eps_dB,
-        bool_p1,bool_p2,bool_p3,bool_p4,
-        p1,p2,p3,p4
-    ) = new(
-        m,n,r,objval,
-        NZC,NZR,norm_0,norm_1,norm_21,iter,time,norm_fro,
-        res_cpE,res_cdE,res_cpB,res_cdB,eps_pE,eps_dE,eps_pB,eps_dB,
-        bool_p1,bool_p2,bool_p3,bool_p4,
-        p1,p2,p3,p4
-    )
-end
-
-mutable struct GinvADMMInfoIterations
-    Iter::Vector{Float64}
-    Norm0::Vector{Float64}
-    Norm1::Vector{Float64}
-    Norm20::Vector{Float64}
-    Norm21::Vector{Float64}
-    Pres::Vector{Float64}
-    Dres::Vector{Float64}
-
-    GinvADMMInfoIterations() = new()
-end
 
 mutable struct OptionsADMM
     eps::Float64

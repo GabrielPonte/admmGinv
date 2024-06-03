@@ -1,3 +1,15 @@
+using LinearAlgebra, MAT, DelimitedFiles, SparseArrays
+
+function getMatlabInstance(instanceName::String,matrixName::String)
+    myInst = string("..\\Instances\\",instanceName,".mat");
+    file = matopen(string(myInst));
+    A = read(file, string(matrixName));
+    close(file);
+    A = Matrix(A);
+    return A
+end
+
+
 function getInitialInfoGinv(inst::GinvInst)
     m,n,r = inst.m,inst.n,inst.r;
     U,Σ,V = svd(inst.A,full=true);
@@ -148,9 +160,7 @@ function getResultsADMM(inst::GinvInst,sol::SolutionADMM)
     norm_21  = getnorm21(H);
     norm_0 = getnorm0(H,ϵ);
     norm_1 = getnorm1(H);
-    # count_rows0 = getZeroRows(H,ϵ);
-    # NZR = inst.n - count_rows0;
-    NZR = getnorm20(H,ϵ);
+    norm_20 = getnorm20(H,ϵ);
     count_cols0 = getZeroCols(H,ϵ);
     NZC = inst.m - count_cols0;
     p1,p2,p3,p4 = norm(A*H*A - A),norm(H*A*H - H),norm(A*H - H'*A'),norm(H*A - A'*H');
@@ -164,53 +174,14 @@ function getResultsADMM(inst::GinvInst,sol::SolutionADMM)
         inst.r,
         sol.z,
         NZC,
-        NZR,
-        norm_0,
         norm_1,
+        norm_0,
         norm_21,
-        sol.iter,
+        norm_20,
         sol.time,
+        sol.iter,
         norm_fro,
         sol.res_pri,sol.res_dual,sol.res_d_ML,sol.res_opt,sol.eps_p,sol.eps_d,
-        bool_p1,bool_p2,bool_p3,bool_p4,
-        p1,p2,p3,p4
-    )
-    return ginvResult
-end
-
-function getResultsExtendedADMM(inst::GinvInst,sol::SolutionExtendedADMM)
-    ϵ = 1e-5;
-    A = inst.A;
-    H = sol.H;
-    norm_fro = norm(H,2);
-    norm_21  = getnorm21(H);
-    norm_0 = getnorm0(H,ϵ);
-    norm_1 = getnorm1(H);
-    # count_rows0 = getZeroRows(H,ϵ);
-    # NZR = inst.n - count_rows0;
-    NZR = getnorm20(H,ϵ);
-    count_cols0 = getZeroCols(H,ϵ);
-    NZC = inst.m - count_cols0;
-    p1,p2,p3,p4 = norm(A*H*A - A),norm(H*A*H - H),norm(A*H - H'*A'),norm(H*A - A'*H');
-    p1 < ϵ ? bool_p1 = true : bool_p1 = false;
-    p2 < ϵ ? bool_p2 = true : bool_p2 = false;
-    p3 < ϵ ? bool_p3 = true : bool_p3 = false;
-    p4 < ϵ ? bool_p4 = true : bool_p4 = false;
-    ginvResult = GinvResultExtendedADMM(
-        inst.m,
-        inst.n,
-        inst.r,
-        sol.z,
-        NZC,
-        NZR,
-        norm_0,
-        norm_1,
-        norm_21,
-        sol.iter,
-        sol.time,
-        norm_fro,
-        sol.res_cpE,sol.res_cdE,sol.res_cpB,sol.res_cdB,
-        sol.eps_pE,sol.eps_dE,sol.eps_pB,sol.eps_dB,
         bool_p1,bool_p2,bool_p3,bool_p4,
         p1,p2,p3,p4
     )
@@ -242,7 +213,7 @@ function init_ginv_res_admm()
     return ginv_res
 end
 
-function writeCSV!(arr_res::Vector{T},ginv_res::Union{GinvResultADMM,GinvResultExtendedADMM, GinvResultSolver},ginv_code::Symbol) where {T}
+function writeCSV!(arr_res::Vector{T},ginv_res::Union{GinvResultADMM, GinvResultSolver},ginv_code::Symbol) where {T}
     folder_1 = "..\\ResultsCSV";
     mkdir_ginv(folder_1)
     # File name
@@ -279,18 +250,6 @@ function append_to_plot2!(P1,D1,It,primal_res,dual_res,iter)
     dual_res <= 1e-15 ? dual_res = 1e-12 : dual_res
     push!(P1,primal_res)
     push!(D1,dual_res)
-    push!(It,iter)
-end
-
-function append_to_plot_extended2!(primal_res1,primal_res2,dual_res1,dual_res2,iter)
-    primal_res1 <= 1e-15 ? primal_res1 = 1e-12 : primal_res1
-    primal_res2 <= 1e-15 ? primal_res2 = 1e-12 : primal_res2
-    dual_res1 <= 1e-15 ? dual_res1 = 1e-12 : dual_res1
-    dual_res2 <= 1e-15 ? dual_res2 = 1e-12 : dual_res2
-    push!(P1,primal_res1)
-    push!(P2,primal_res2)
-    push!(D1,dual_res1)
-    push!(D2,dual_res2)
     push!(It,iter)
 end
 
