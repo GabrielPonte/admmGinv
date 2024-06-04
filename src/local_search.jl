@@ -4,30 +4,28 @@ getLIRows(A,r) = (qr(A', ColumnNorm()).p)[1:r]
 function get_LI_RC(A,r)
     time_start = time_ns() 
     C = getLICols(A,r);
-    time_start2 = time_ns()
-    time_2 =  (time_start2 - time_start)/1e9
-    println("Found columns in $(round(time_2,digits=3)) sec.")
     R = getLIRows(A[:,C],r);
-    time_3 =  (time_ns() - time_start2)/1e9
-    println("Found rows in $(round(time_3,digits=3)) sec.")
+    min_svd = minimum(svd(A[R,C]).S);
+    if min_svd < 1e-5
+        @warn "Submatrix close to be singular. Minimum singular value is $(@sprintf("%.2e", min_svd))";
+    end
     elapsed_time = (time_ns() - time_start)/1e9
     return R,C,elapsed_time
 end
     
-function lu_rank_one_update(L, U, y, z)
-    # only works for P = (1:n) otherwise y = y[P]
+function lu_rank_one_update(L, U, y, z, r)
+    # only works for P = (1:r) otherwise y = y[P]
     # z = ei
     # y = A(R,C(i)) - A(R,C(alpha_idx))
-    #y = y[P]; 
-    n = length(y);
-    for i = (1:n)
+    # y = y[P]; 
+    for i = (1:r)
         U[i, i] = U[i, i] + y[i]*z[i];
         z[i] = z[i] / U[i, i]; 
-        for j = i+1:n
-            y[j] = y[j] - y[i]*L[j, i];
-            L[j, i] = L[j, i] + z[i]*y[j];
-            U[i, j] = U[i, j] + y[i]*z[j];
-            z[j] = z[j] - z[i]*U[i, j];
+        for j = (i+1:r)
+            y[j] = y[j] - y[i]*L[j,i];
+            L[j,i] = L[j,i] + z[i]*y[j];
+            U[i,j] = U[i,j] + y[i]*z[j];
+            z[j] = z[j] - z[i]*U[i,j];
         end
     end
     return L,U
@@ -37,6 +35,7 @@ end
 function LS_det(A,R,C,TP::Symbol)
     time_start = time_ns()
     m,n = size(A); r = length(C);
+    eps = 1e-4;
     swaps = 0; col_i = 0; 
     val_alpha = 0; alpha_idx = 0;
     Cb = setdiff((1:n),C);
@@ -50,10 +49,10 @@ function LS_det(A,R,C,TP::Symbol)
                 # Get multiplicator alpha from LU Factoration
                 alpha = abs.(U\(L\Arp[:,Cb_i]));
                 if TP == :FI
-                    alpha_idx = findfirst(x -> x >= 1+1e-8, alpha); 
+                    alpha_idx = findfirst(x -> x >= 1+eps, alpha); 
                 elseif TP == :FP
                     val_alpha,alpha_idx = findmax(alpha); 
-                    if val_alpha < 1 + 1e-8
+                    if val_alpha < 1 + eps
                         alpha_idx = nothing
                     end
                 end
@@ -67,7 +66,7 @@ function LS_det(A,R,C,TP::Symbol)
             # Get multiplicator alpha from LU Factoration
             alpha = abs.(U\(L\Arp[:,Cb]));
             val_alpha,alpha_idx = findmax(alpha); 
-            if val_alpha < 1 + 1e-8
+            if val_alpha < 1 + eps
                 alpha_idx = nothing
             end
             if !isnothing(alpha_idx)
@@ -84,7 +83,7 @@ function LS_det(A,R,C,TP::Symbol)
             # update LU with rank-one update
             sub_cols = Arp[:,Cb[col_i]]-Arp[:,C[alpha_idx]];
             ei = zeros(r); ei[alpha_idx] = 1;
-            L,U = lu_rank_one_update(L, U, sub_cols, ei);
+            L,U = lu_rank_one_update(L, U, sub_cols, ei, r);
             # swap elements elements from C to Cb and vice-versa
             C[alpha_idx],Cb[col_i] = Cb[col_i],C[alpha_idx]; 
         end
@@ -177,6 +176,119 @@ function LS_21(A,C,TP::Symbol)
             # update norm H hat squared
             norm_H_hat_row = norm.(eachrow(H_hat)).^2;
         end
+    end
+    # get output
+    time_ls21 = (time_ns() - time_start)/1e9;
+    A_hat =  A[:,C];
+    H_hat = (A_hat'*A_hat) \ A_hat';
+    H = zeros(n,m);
+    H[C,:] .= H_hat;
+    admmsol = SolutionADMM();
+    admmsol.time = time_ls21;
+    admmsol.H = H;
+    admmsol.iter = swaps;
+    admmsol.z = getnorm21(admmsol.H);
+    return admmsol
+end
+
+
+function LS_det_not_eff(A,R,C,TP::Symbol)
+    time_start = time_ns()
+    m,n = size(A); r = length(C);
+    eps = 1e-4;
+    swaps = 0; col_i = 0; 
+    val_alpha = 0; alpha_idx = 0;
+    Cb = setdiff((1:n),C);
+    det_best = abs(det(A[R,C]));
+    C_best = deepcopy(C)
+    C2 = deepcopy(C);
+    flag = true
+    idx_ib,idx_jb = 0,0;
+    # @show Cb
+    while flag
+        flag = false
+        det_best2 = deepcopy(det_best)
+        for (idx_i,i) in enumerate(Cb)
+            for (idx_j,j) in enumerate(C)
+                C2 = deepcopy(C);
+                C2[idx_j] = i;
+                if abs(det(A[R,C2])/det_best) >=  1 + eps
+                    flag = true;
+                    C_best = deepcopy(C2)
+                    det_best = abs(det(A[R,C2]))
+                    idx_ib,idx_jb = idx_i,idx_j
+                    if TP ==:FI
+                        break
+                    end
+                end
+            end
+            if (TP ==:FI || TP == :FP) && flag
+                break
+            end
+        end
+        if flag 
+            # C = deepcopy(C_best)
+            C[idx_jb],Cb[idx_ib] = Cb[idx_ib],C[idx_jb]; 
+            swaps += 1
+        end
+
+    end
+    time_ls = (time_ns() - time_start)/1e9;
+    det_Ar = det(A[R,C]);  
+    A_hat =  A[:,C];
+    H_hat = (A_hat'*A_hat) \ A_hat';
+    H = zeros(n,m);
+    H[C,:] .= H_hat;
+    admmsol = SolutionADMM();
+    admmsol.time = time_ls;
+    admmsol.H = H;
+    admmsol.iter = swaps;
+    admmsol.z = det_Ar;
+    return admmsol,C
+end
+
+
+function LS_21_not_eff(A,C,TP::Symbol)
+    time_start = time_ns()
+    m,n = size(A); r = length(C);
+    eps = 1e-4;
+    swaps = 0; col_i = 0; 
+    val_alpha = 0; alpha_idx = 0;
+    Cb = setdiff((1:n),C);
+    n21_best = getnorm21(pinv(A[:,C]));
+    C_best = deepcopy(C)
+    C2 = deepcopy(C);
+    flag = true
+    idx_ib,idx_jb = 0,0;
+    # @show Cb
+    while flag
+        flag = false
+        # det_best2 = deepcopy(det_best)
+        for (idx_i,i) in enumerate(Cb)
+            for (idx_j,j) in enumerate(C)
+                C2 = deepcopy(C);
+                C2[idx_j] = i;
+                if getnorm21(pinv(A[:,C2])) < n21_best #- eps 
+                # if abs(det(A[R,C2])/det_best) >=  1 + eps
+                    flag = true;
+                    C_best = deepcopy(C2)
+                    n21_best = getnorm21(pinv(A[:,C2]))#abs(det(A[R,C2]))
+                    idx_ib,idx_jb = idx_i,idx_j
+                    if TP ==:FI
+                        break
+                    end
+                end
+            end
+            if (TP ==:FI || TP == :FP) && flag
+                break
+            end
+        end
+        if flag 
+            # C = deepcopy(C_best)
+            C[idx_jb],Cb[idx_ib] = Cb[idx_ib],C[idx_jb]; 
+            swaps += 1
+        end
+
     end
     # get output
     time_ls21 = (time_ns() - time_start)/1e9;
