@@ -1,4 +1,4 @@
-function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho=3,max_iter=5e4,time_limit=7200,stop_limit=:Boyd)
+function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho=3,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
     # initialize timer
     time_start = time_ns()
     # initialize parameters
@@ -62,7 +62,7 @@ function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho
    
 end
 
-function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rho=1,max_iter=5e4,time_limit=7200,stop_limit=:Boyd)
+function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rho=1,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
     # initialize timer
     time_start = time_ns()
     # initialize parameters
@@ -118,7 +118,7 @@ function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rh
     return admmsol,M,Λ
 end
 
-function admm2120norm(ginvInit::GinvInit,ω21::Float64,nzr21::Int64,M_21,Λ_21;eps_abs=1e-4,eps_rel=1e-4,rho=1e4,max_iter=5e4,time_limit=7200)
+function admm2120norm(ginvInit::GinvInit,ω21::Float64,nzr21::Int64,M_21,Λ_21;eps_abs=1e-4,eps_rel=1e-4,rho=1e4,max_iter=1e5,time_limit=7200)
     # initialize timer
     time_start = time_ns()
     # initialize parameters
