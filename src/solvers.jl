@@ -7,12 +7,11 @@ function solve1grb(inst::GinvInst,ginvInit::GinvInit)
     set_attribute(model, "BarQCPConvTol", 1e-5)
     set_attribute(model, "FeasibilityTol", 1e-5)
     set_attribute(model, "OptimalityTol", 1e-5)
-    @variable(model, F[1:n,1:m]);
+    @variable(model, t);
     @variable(model, Z[1:n-r,1:r]);
-    Amat = ginvInit.V1DinvU1T + ginvInit.V2*Z*ginvInit.U1';
-    @constraint(model, F .>= Amat);
-    @constraint(model, F .>= -Amat);
-    @objective(model,Min,sum(F))
+    F = ginvInit.V1DinvU1T + ginvInit.V2*Z*ginvInit.U1';
+    @constraint(model, [t; vec(F)] in MOI.NormOneCone(1 + length(vec(F))));
+    @objective(model,Min,t);
     time_to_solve = @elapsed optimize!(model);
     bsol = SolutionOptimizer();
     primal_status = termination_status(model);
@@ -24,50 +23,6 @@ function solve1grb(inst::GinvInst,ginvInit::GinvInit)
         bsol.z,bsol.time = Inf, time_to_solve;
     end
     return bsol
-end
-
-function solveGenLasso(ginvInit::GinvInit,Y::Matrix{Float64},rho::Float64)
-    model = Model(Gurobi.Optimizer);
-    set_silent(model)
-    @variable(model,E[1:n,1:r]);
-    @variable(model, t);
-    EU1T= E*ginvInit.U1';
-    @constraint(model, [t; vec(EU1T)] in MOI.NormOneCone(1 + length(vec(EU1T))));
-    EY = E-Y;
-    @objective(model,Min,t + (rho/2)*sum(EY[i,j]^2 for i =(1:n),j=(1:r)));
-    optimize!(model);
-    E = value.(E);
-    F = E*ginvInit.U1';
-    return E,F
-end
-
-function solveGenLasso_sub1(ginvInit::GinvInit,Y::Matrix{Float64},F::Matrix{Float64},W::Matrix{Float64},rho::Float64,beta::Float64)
-    m,n,r=ginvInit.m,ginvInit.n,ginvInit.r;
-    model = Model(Gurobi.Optimizer);
-    set_silent(model)
-    @variable(model,E[1:n,1:r]);
-    @variable(model, t);
-    EU1TFW= E*ginvInit.U1'-F+W;
-    EY = E-Y;
-    @objective(model,Min, (rho/2)*sum(EY[i,j]^2 for i =(1:n),j=(1:r)) + (beta/2)*sum(EU1TFW[i,j]^2 for i =(1:n),j=(1:m)));
-    optimize!(model);
-    E = value.(E);
-    P = E*ginvInit.U1';
-    return P
-end
-
-function solveGenLasso_sub2(ginvInit::GinvInit,M::Matrix{Float64},beta::Float64)
-    m,n,r=ginvInit.m,ginvInit.n,ginvInit.r;
-    model = Model(Gurobi.Optimizer);
-    set_silent(model)
-    @variable(model,F[1:n,1:m]);
-    @variable(model, t);
-    @constraint(model, [t; vec(F)] in MOI.NormOneCone(1 + length(vec(F))));
-    EM = F-M;
-    @objective(model,Min,t + (beta/2)*sum(EM[i,j]^2 for i =(1:n),j=(1:m)));
-    optimize!(model);
-    F = value.(F);
-    return F
 end
 
 function solve1_not_eff_grb(inst::GinvInst)
@@ -177,66 +132,4 @@ function solve21msk(inst::GinvInst,ginvInit::GinvInit)
         csol.z,csol.time = Inf, time_to_solve;
     end
     return csol
-end
-
-function solve21grb(inst::GinvInst,ginvInit::GinvInit)
-    n,r = inst.n,inst.r;
-    model = Model(Mosek.Optimizer);
-    set_time_limit_sec(model, 15)
-    # set_silent(model);
-    # set_attribute(model, "TimeLimit", 15)
-    # set_attribute(model, "Presolve", 0)
-    # set_attribute(model, "BarConvTol", 1e-5)
-    # set_attribute(model, "BarQCPConvTol", 1e-5)
-    # set_attribute(model, "FeasibilityTol", 1e-5)
-    # set_attribute(model, "OptimalityTol", 1e-5)
-    # set_silent(model);
-    @variable(model, t[i in (1:n)]);
-    @variable(model, Z[1:n-r,1:r]);
-    Cmat = ginvInit.Vr*diagm(ginvInit.Dinv) + ginvInit.Vs*Z;
-    @constraint(model, [i = (1:n)], [t[i];  Cmat[i,:]] in SecondOrderCone())
-    @objective(model,Min,sum(t))
-    time_to_solve = @elapsed optimize!(model);
-
-    csol = SolutionOptimizer();
-    primal_status = termination_status(model);
-    println(string("Solution status 2,1 GRB: ", primal_status))
-    if primal_status != MOI.TIME_LIMIT
-        csol.H = ginvInit.G + ginvInit.Vs*value.(Z)*ginvInit.Ur';
-        csol.z,csol.time =  objective_value(model),time_to_solve;
-    else
-        csol.H = zeros(n,m);
-        csol.z,csol.time = Inf, time_to_solve;
-    end
-    return csol
-end
-
-function subprobZ(n,r,J,U1,V2)
-    model = Model(Mosek.Optimizer)
-    @variable(model,Z[1:n-r,1:r])
-    M = J - V2*Z*U1'
-    @objective(model,Min,sum(M[i,j]^2 for i = (1:n), j =(1:m)))
-    optimize!(model)
-    Z = value.(Z)
-    W = V2*Z*U1'
-    return W
-end
-
-function subprobE(n,Y,rho)
-    model = Model(Gurobi.Optimizer)
-    set_silent(model)
-    @variable(model,E[1:n,1:m])
-    @variable(model,X[1:n,1:m])
-    for i = (1:n)
-        for j =(1:m)
-            @constraint(model,X[i,j] >= E[i,j])
-            @constraint(model,X[i,j] >= -E[i,j])
-        end
-    end
-    M = E-Y
-    @objective(model,Min, sum(X[i,j] for i = (1:n), j =(1:m)) + (rho/2)*sum(M[i,j]^2 for i = (1:n), j =(1:m)))
-    optimize!(model)
-    E = value.(E)
-    # W = V2*Z*U1'
-    return E
 end

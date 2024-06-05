@@ -15,7 +15,7 @@ include("types.jl")
 include("util.jl")
 include("closed_form_sols.jl")
 include("admm.jl")
-# include("solvers.jl")
+include("solvers.jl")
 include("local_search.jl")
 
 arr_resADMM_1,arr_resADMM_0 = init_ginv_res_admm(),init_ginv_res_admm()
