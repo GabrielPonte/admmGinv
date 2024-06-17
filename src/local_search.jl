@@ -164,11 +164,35 @@ function LS_21(A,C,TP::Symbol)
             # update columns
             C[j],Cb[i] = Cb[i],C[j]; 
             # update W
+            v = Psi[:,i];
+            v_bar = -v./v[j];
+            v_bar[j] = 1/v[j];
+            W_new = zeros(size(W))
+            for i1 = (1:size(W_new,1))
+                for l1 = (1:size(W_new,2))
+                    if i1 != j && l1 != j
+                        W_new[i1,l1] = W[i1,l1] + v_bar[i1]*v_bar[l1]*norm_Hj_save^2 + W[i1,j]*v_bar[l1] +  W[j,l1]*v_bar[i1]
+                    elseif i1 != j && l1 == j
+                        W_new[i1,l1] = v_bar[j]*(W[i1,l1] +norm_Hj_save^2*v_bar[i1] )
+                    elseif i1 == j && l1 != j
+                        W_new[i1,l1] = v_bar[j]*(W[i1,l1] +norm_Hj_save^2*v_bar[l1] )
+                    else
+                        W_new[i1,l1] = (norm_Hj_save*v_bar[j])^2
+                    end
+                end
+            end
+            W_new2 = deepcopy(W_new)
+
             Y = W[Sj,j]*vbar_save';
             W[Sj,Sj] += (vbar_save*vbar_save')*norm_Hj_save^2 + Y + Y';
             W[Sj,j] = (1/vj_save)*(W[Sj,j] + (norm_Hj_save^2)*vbar_save)
             W[j,Sj] =  W[Sj,j];
             W[j,j] = (norm_Hj_save/vj_save)^2
+            @show norm(W - W_new2)
+            if norm(W-W_new) > 1e-4
+                error("deu ruim")
+            end
+            
             # update Psi
             Psi[Sj,:] += vbar_save.*Psi[j,:]';
             Psi[j,:] *= (1/vj_save);
