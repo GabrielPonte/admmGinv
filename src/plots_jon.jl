@@ -83,16 +83,19 @@ str2 = L"{\|\|H\|\|}_{2,0}"
 my_legend = [str1 str2]
 
 
-str_x1 = latexstring("\$\\textrm{ADMM}_{2,1}\$ \n \$\\textrm{[ $(time[1]) ]}\$")
-str_x2 = latexstring("\$0.25\$ \n \$\\textrm{[ $(time[2]) ]~\\;\\,}\$")
-str_x3 = latexstring("\$0.50\$ \n \$\\textrm{[ $(time[3]) ]~\\;\\,}\$")
-str_x4 = latexstring("\$0.75\$ \n \$\\textrm{[ $(time[4]) ]~\\;\\,}\$")
-str_x5 = latexstring("\$0.80\$ \n \$\\textrm{[ $(time[5]) ]~\\;\\,}\$")
-str_x6 = latexstring("\$0.90\$ \n \$\\textrm{[ $(time[6]) ]~\\;\\,}\$")
-str_x7 = latexstring("\$0.95\$ \n \$\\textrm{[ $(time[7]) ]~\\;\\,}\$")
-str_x8 = latexstring("\$\\textrm{LS}\$ \n \$\\textrm{[ $(time[8]) ]~\\;\\,}\$")
+str_x0 = latexstring("\$\\textrm{M\\!\\,P\\!\\;\\!P}\$")
+# str_x0 = latexstring("\$\\textrm{M\\!\\,P\\!\\,P}\$")
+# str_x0 = latexstring("\$\\textrm{MPP}\$")
+str_x1 = latexstring("\$\\textrm{ADMM}_{2,1}\$ \n \$\\textrm{[ $(time[2]) ]}\$")
+str_x2 = latexstring("\$0.25\$ \n \$\\textrm{[ $(time[3]) ]~\\;\\,}\$")
+str_x3 = latexstring("\$0.50\$ \n \$\\textrm{[ $(time[4]) ]~\\;\\,}\$")
+str_x4 = latexstring("\$0.75\$ \n \$\\textrm{[ $(time[5]) ]~\\;\\,}\$")
+str_x5 = latexstring("\$0.80\$ \n \$\\textrm{[ $(time[6]) ]~\\;\\,}\$")
+str_x6 = latexstring("\$0.90\$ \n \$\\textrm{[ $(time[7]) ]~\\;\\,}\$")
+str_x7 = latexstring("\$0.95\$ \n \$\\textrm{[ $(time[8]) ]~\\;\\,}\$")
+str_x8 = latexstring("\$\\textrm{LS}\$ \n \$\\textrm{[ $(time[9]) ]~\\;\\,}\$")
 
-x_vals = [str_x1, str_x2, str_x3,str_x4,str_x5,str_x6,str_x7, str_x8]
+x_vals = [str_x0, str_x1, str_x2, str_x3,str_x4,str_x5,str_x6,str_x7, str_x8]
 
 scatter(x_vals,y_vals45,palette = palette(:default)[[1,2]],label = nothing)
 plot!(
@@ -104,9 +107,10 @@ plot!(
     ylabel = L"\|\|H\|\|",
     legendfontsize=11.0,
     xtickfontsize=10,
-    legend=:top
+    legend=:top,
+    yticks =  (750:250:2000),
 )
-savefig("plot_20norm_L4_v6.pdf")
+savefig("plot_20norm_L4_v7_MPP_fix.pdf")
 
 
 ########################################
@@ -122,16 +126,17 @@ str1 = L"0.5\;{\|\|H\|\|}_{2,1}^{}"
 str2 = L"{\|\|H\|\|}_{2,0}"
 my_legend = [str1 str2]
 
-str_x1 = latexstring("\$\\textrm{ADMM}_{2,1}\$ \n \$\\textrm{[ $(time[1]) ]}\$")
-str_x2 = latexstring("\$0.25\$ \n \$\\textrm{[ $(time[2]) ]~\\;\\,}\$")
-str_x3 = latexstring("\$0.50\$ \n \$\\textrm{[ $(time[3]) ]~\\;\\,}\$")
-str_x4 = latexstring("\$0.75\$ \n \$\\textrm{[ $(time[4]) ]~\\;\\,}\$")
-str_x5 = latexstring("\$0.80\$ \n \$\\textrm{[ $(time[5]) ]~\\;\\,}\$")
-str_x6 = latexstring("\$0.90\$ \n \$\\textrm{[ $(time[6]) ]~\\;\\,}\$")
-str_x7 = latexstring("\$0.95\$ \n \$\\textrm{[ $(time[7]) ]~\\;\\,}\$")
-str_x8 = latexstring("\$\\textrm{LS}\$ \n \$\\textrm{[ $(time[8]) ]~\\;\\,}\$")
+str_x0 = latexstring("\$\\textrm{M\\!\\,P\\!\\;\\!P}\$")
+str_x1 = latexstring("\$\\textrm{ADMM}_{2,1}\$ \n \$\\textrm{[ $(time[2]) ]}\$")
+str_x2 = latexstring("\$0.25\$ \n \$\\textrm{[ $(time[3]) ]~\\;\\,}\$")
+str_x3 = latexstring("\$0.50\$ \n \$\\textrm{[ $(time[4]) ]~\\;\\,}\$")
+str_x4 = latexstring("\$0.75\$ \n \$\\textrm{[ $(time[5]) ]~\\;\\,}\$")
+str_x5 = latexstring("\$0.80\$ \n \$\\textrm{[ $(time[6]) ]~\\;\\,}\$")
+str_x6 = latexstring("\$0.90\$ \n \$\\textrm{[ $(time[7]) ]~\\;\\,}\$")
+str_x7 = latexstring("\$0.95\$ \n \$\\textrm{[ $(time[8]) ]~\\;\\,}\$")
+str_x8 = latexstring("\$\\textrm{LS}\$ \n \$\\textrm{[ $(time[9]) ]~\\;\\,}\$")
 
-x_vals = [str_x1, str_x2, str_x3,str_x4,str_x5,str_x6,str_x7, str_x8]
+x_vals = [str_x0, str_x1, str_x2, str_x3,str_x4,str_x5,str_x6,str_x7, str_x8]
 
 
 scatter(x_vals,y_vals45,palette = palette(:default)[[1,2]],label = nothing)
@@ -145,6 +150,6 @@ plot!(
     legendfontsize=11.0,
     xtickfontsize=10,
     legend=:top,
-    yticks =  (950:350:2400),
+    yticks =  (700:300:2600),
 )
-savefig("plot_20norm_L5_v6.pdf")
+savefig("plot_20norm_L5_v7_MPP_fix.pdf")
