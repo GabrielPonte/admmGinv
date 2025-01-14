@@ -83,10 +83,8 @@ str2 = L"{\|\|H\|\|}_{2,0}"
 my_legend = [str1 str2]
 
 
-str_x0 = latexstring("\$\\textrm{M\\!\\,P\\!\\;\\!P}\$")
-# str_x0 = latexstring("\$\\textrm{M\\!\\,P\\!\\,P}\$")
-# str_x0 = latexstring("\$\\textrm{MPP}\$")
-str_x1 = latexstring("\$\\textrm{ADMM}_{2,1}\$ \n \$\\textrm{[ $(time[2]) ]}\$")
+str_x0 = latexstring("  \$\\textrm{M\\!\\,P\\!\\;\\!P}\$ \n \$\\textrm{[ $(time[1]) ]}\$")
+str_x1 = latexstring(" \$\\textrm{ADMM}_{2,1}\$ \n \$\\textrm{[ $(time[2]) ]}\$")
 str_x2 = latexstring("\$0.25\$ \n \$\\textrm{[ $(time[3]) ]~\\;\\,}\$")
 str_x3 = latexstring("\$0.50\$ \n \$\\textrm{[ $(time[4]) ]~\\;\\,}\$")
 str_x4 = latexstring("\$0.75\$ \n \$\\textrm{[ $(time[5]) ]~\\;\\,}\$")
@@ -110,7 +108,7 @@ plot!(
     legend=:top,
     yticks =  (750:250:2000),
 )
-savefig("plot_20norm_L4_v7_MPP_fix.pdf")
+savefig("P1_L4_MPP_time.pdf")
 
 
 ########################################
@@ -126,8 +124,9 @@ str1 = L"0.5\;{\|\|H\|\|}_{2,1}^{}"
 str2 = L"{\|\|H\|\|}_{2,0}"
 my_legend = [str1 str2]
 
-str_x0 = latexstring("\$\\textrm{M\\!\\,P\\!\\;\\!P}\$")
-str_x1 = latexstring("\$\\textrm{ADMM}_{2,1}\$ \n \$\\textrm{[ $(time[2]) ]}\$")
+
+str_x0 = latexstring("  \$\\textrm{M\\!\\,P\\!\\;\\!P}\$ \n \$\\textrm{[ $(time[1]) ]}\$")
+str_x1 = latexstring(" \$\\textrm{ADMM}_{2,1}\$ \n \$\\textrm{[ $(time[2]) ]}\$")
 str_x2 = latexstring("\$0.25\$ \n \$\\textrm{[ $(time[3]) ]~\\;\\,}\$")
 str_x3 = latexstring("\$0.50\$ \n \$\\textrm{[ $(time[4]) ]~\\;\\,}\$")
 str_x4 = latexstring("\$0.75\$ \n \$\\textrm{[ $(time[5]) ]~\\;\\,}\$")
@@ -152,4 +151,4 @@ plot!(
     legend=:top,
     yticks =  (700:300:2600),
 )
-savefig("plot_20norm_L5_v7_MPP_fix.pdf")
+savefig("P1_L5_MPP_time.pdf")
