@@ -18,7 +18,7 @@ include("solvers.jl")
 include("local_search.jl")
 
 arr_resADMM_1,arr_resADMM_0 = init_ginv_res_admm(),init_ginv_res_admm()
-arr_resADMM_21,arr_resADMM_20,arr_resADMM_210 = init_ginv_res_admm(),init_ginv_res_admm(),init_ginv_res_admm();
+arr_resADMM_21,arr_resADMM_20,arr_resADMM_2120 = init_ginv_res_admm(),init_ginv_res_admm(),init_ginv_res_admm();
 arr_resLSdet,arr_resLS21 = init_ginv_res_admm(),init_ginv_res_admm();
 arr_resGRB_1,arr_resMSK_21 = init_ginv_res_solver(),init_ginv_res_solver();
 println("\nStarting procedure...")
@@ -29,10 +29,11 @@ instances_array = ["S1","S2","S3","S4","S5","L1","L2","L3","L4","L5",];
 
 run_ls = false; # Run local search based on determinant
 run_admm1n = false; # Run ADMM 1-norm for P1, P2, P3
-run_admm21n = false;# Run ADMM 2,1-norm for P1, P2, P3
-run_2120n = false; # Run ADMM-2,1 with target 2,0-norm
-run_grb = true; # Run Gurobi solver for min 1-norm
-run_msk = true; # Run Mosek solver for min 2,1-norm
+run_admm21n = true;# Run ADMM 2,1-norm for P1, P2, P3
+run_20n = true; # Run ADMM with target 2,0-norm
+run_2120n = true; # Run ADMM-2,1 with target 2,0-norm
+run_grb = false; # Run Gurobi solver for min 1-norm
+run_msk = false; # Run Mosek solver for min 2,1-norm
 
 fixed_tol = true # Choose between fixed tolerance for ADMM or dynamic tolerance proposed by Boyd
 
@@ -77,23 +78,37 @@ for inst in instances_array
         flush(stdout); GC.gc();
     end
     # Run ADMM based on the 2,1-norm
-    if run_2120n
+    if run_admm21n || run_2120n || run_20n
         time_admm_21 = @elapsed admmsol_21,M_21,Λ_21 = admm21norm(ginvInit);
         admmres_21 = getResultsADMM(inst,admmsol_21);
-        writeCSV!(arr_resADMM_21,admmres_21,Symbol(:ADMM_21_,TP))
-        @info (string("m = ",m,". ADMM 2,1: ", round_exact(admmsol_21.time,2), " sec. |2,1|: ", round_exact(admmsol_21.z,3), ". |2,0|: ", admmres_21.norm_20, ". |0|: ", admmres_21.norm_0,". Iter: ", admmsol_21.iter));
-        flush(stdout); GC.gc();
-        # Run ADMM based on the 2,1-2,0-norm
-        if m >= 1000
-            for ω21 in [0.25, 0.50, 0.75, 0.80, 0.90, 0.95]
-                nzr21 = admmres_21.norm_20;
-                time_admm_20 = @elapsed admmsol_20 = admm2120norm(ginvInit,ω21,nzr21,M_21,Λ_21);
-                admmres_20 = getResultsADMM(inst,admmsol_20);
-                writeCSV!(arr_resADMM_20,admmres_20,Symbol(:ADMM_2120_,trunc(Int64,100*ω21)))
-                @info (string("w = ",round_exact(ω21,2),". ADMM 2,0: ", round_exact(admmsol_20.time,2), " sec. |2,1|: ", round_exact(admmsol_20.z,3), ". |2,0|: ", admmres_20.norm_20,". |0|: ", admmres_20.norm_0,". Iter: ", admmsol_20.iter));
-                flush(stdout); GC.gc();
+        if run_admm21n
+            writeCSV!(arr_resADMM_21,admmres_21,Symbol(:ADMM_21_,TP))
+            @info (string("m = ",m,". ADMM 2,1: ", round_exact(admmsol_21.time,2), " sec. |2,1|: ", round_exact(admmsol_21.z,3), ". |2,0|: ", admmres_21.norm_20, ". |0|: ", admmres_21.norm_0,". Iter: ", admmsol_21.iter));
+            flush(stdout); GC.gc();
+        end
+        if run_2120n || run_20n
+            # Run ADMM based on the 2,1-2,0-norm
+            if m >= 1000
+                for ω21 in [0.25, 0.50, 0.75, 0.80, 0.90, 0.95]
+                    nzr21 = admmres_21.norm_20;
+                    if run_20n
+                        time_admm_20 = @elapsed admmsol_20 = admm20norm(ginvInit,ω21,nzr21);
+                        admmres_20 = getResultsADMM(inst,admmsol_20);
+                        writeCSV!(arr_resADMM_20,admmres_20,Symbol(:ADMM_20_,trunc(Int64,100*ω21)))
+                        @info (string("w = ",round_exact(ω21,2),". ADMM 2,0: ", round_exact(admmsol_20.time,2), " sec. |2,1|: ", round_exact(admmsol_20.z,3), ". |2,0|: ", admmres_20.norm_20,". |0|: ", admmres_20.norm_0,". Iter: ", admmsol_20.iter));
+                        flush(stdout); GC.gc();
+                    end
+                    if run_2120n
+                        time_admm_2120 = @elapsed admmsol_2120 = admm2120norm(ginvInit,ω21,nzr21,M_21,Λ_21);
+                        admmres_2120 = getResultsADMM(inst,admmsol_20);
+                        writeCSV!(arr_resADMM_2120,admmres_2120,Symbol(:ADMM_2120_,trunc(Int64,100*ω21)))
+                        @info (string("w = ",round_exact(ω21,2),". ADMM 2,0: ", round_exact(admmsol_2120.time,2), " sec. |2,1|: ", round_exact(admmsol_2120.z,3), ". |2,0|: ", admmres_2120.norm_20,". |0|: ", admmres_2120.norm_0,". Iter: ", admmsol_2120.iter));
+                        flush(stdout); GC.gc();
+                    end
+                end
             end
         end
+
     end
     if run_grb 
         time_grb_1 = @elapsed grbsol_1 =solve1grb(inst,ginvInit)

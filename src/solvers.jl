@@ -3,10 +3,10 @@ function solve1grb(inst::GinvInst,ginvInit::GinvInit)
     model = Model(Gurobi.Optimizer);
     set_silent(model);
     set_time_limit_sec(model, 7200)
-    set_attribute(model, "BarConvTol", 1e-5)
-    set_attribute(model, "BarQCPConvTol", 1e-5)
-    set_attribute(model, "FeasibilityTol", 1e-5)
-    set_attribute(model, "OptimalityTol", 1e-5)
+    set_attribute(model, "BarConvTol", 1e-4)
+    set_attribute(model, "BarQCPConvTol", 1e-4)
+    set_attribute(model, "FeasibilityTol", 1e-4)
+    set_attribute(model, "OptimalityTol", 1e-4)
     @variable(model, t);
     @variable(model, Z[1:n-r,1:r]);
     F = ginvInit.V1DinvU1T + ginvInit.V2*Z*ginvInit.U1';

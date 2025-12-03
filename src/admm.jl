@@ -39,7 +39,7 @@ function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho
             error("stop limit not defined correctly")
         end
         iter += 1
-        if iter == max_iter || ((time_ns() - time_start)/1e9) >= 7200
+        if iter == max_iter || ((time_ns() - time_start)/1e9) >= time_limit
             break
         end
         if (primal_res <= eps_p && dual_res <= eps_d)
@@ -102,7 +102,7 @@ function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rh
             error("stop limit not defined correctly")
         end
         iter += 1
-        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= 7200 || (primal_res <= eps_p && dual_res <= eps_d)
+        if (iter == max_iter) || ((time_ns() - time_start)/1e9) >= time_limit || (primal_res <= eps_p && dual_res <= eps_d)
             opt_res = abs(getnorm1(M)-rho*tr(Λ'*V1Dinv))
             break
         end
@@ -116,6 +116,51 @@ function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rh
     admmsol.eps_p,admmsol.eps_d = eps_p,eps_d; 
     admmsol.z = getnorm21(admmsol.H);
     return admmsol,M,Λ
+end
+
+function admm20norm(ginvInit::GinvInit,ω21::Float64,nzr21::Int64;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rho=1,max_iter=1e5)
+    # initialize timer
+    time_start = time_ns()
+    # initialize parameters
+    U1,V2 = ginvInit.U1,ginvInit.V2;
+    V1,V1Dinv = ginvInit.V1,ginvInit.V1Dinv;
+    V2V2T = ginvInit.V2V2T;
+    Θ = (1/maximum(norm.(eachrow(V1))))*V1;
+    n,r = size(Θ);
+    rho_inv = 1/rho;
+    nzr_target = floor(Int64,(1-ω21)*nzr21 + ω21*r)
+    iter=0; norm_V1Dinv = norm(V1Dinv);
+    primal_res,dual_res,opt_res = 0.0,0.0,0.0;
+    eps_p,eps_d = 0.0,0.0;
+    Λ = zeros(n,r); E = ginvInit.V1Dinv+Λ; 
+    E_old = E; M = Nothing;
+    # start admm
+    while true
+        # update Z where W := V2*J with J = (- V1DinvU1T + E - Λ)
+        W = V2V2T*(E - Λ)
+        # update of E
+        M = V1Dinv + W
+        E = closed_form20n(M + Λ,nzr_target)
+        # Compute residuals
+        res_infeas = M - E
+        primal_res = norm(res_infeas)
+        # Update P
+        Λ += res_infeas
+        # Stopping criteria
+        norm20H = getnorm20(M,1e-5)
+        iter += 1
+        if norm20H <= nzr_target || iter == max_iter
+            break
+        end
+        E_old = copy(E);
+    end
+    admmsol = SolutionADMM();
+    admmsol.time = (time_ns() - time_start)/1e9;
+    admmsol.H = M*U1';
+    admmsol.iter = iter;
+    admmsol.res_pri,admmsol.res_dual,admmsol.res_d_ML = primal_res,rho*norm(V2'*(E-E_old)),rho*norm(V2'*(E-E_old));
+    admmsol.z = getnorm21(admmsol.H);
+    return admmsol
 end
 
 function admm2120norm(ginvInit::GinvInit,ω21::Float64,nzr21::Int64,M_21,Λ_21;eps_abs=1e-4,eps_rel=1e-4,rho=1e4,max_iter=1e5,time_limit=7200)
