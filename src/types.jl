@@ -77,7 +77,7 @@ mutable struct GinvResultSolver
     r::Int64
     objval::Float64
     NZC::Int64
-    NZR::Int64
+    norm_20::Int64
     norm_0::Int64
     norm_1::Float64
     norm_21::Float64
@@ -97,12 +97,12 @@ mutable struct GinvResultSolver
 
     GinvResultSolver(
         m,n,r,objval,
-        NZC,NZR,norm_0,norm_1,norm_21,iter,time,norm_fro,
+        NZC,norm_20,norm_0,norm_1,norm_21,iter,time,norm_fro,
         bool_p1,bool_p2,bool_p3,bool_p4,
         p1,p2,p3,p4
     ) = new(
         m,n,r,objval,
-        NZC,NZR,norm_0,norm_1,norm_21,iter,time,norm_fro,
+        NZC,norm_20,norm_0,norm_1,norm_21,iter,time,norm_fro,
         bool_p1,bool_p2,bool_p3,bool_p4,
         p1,p2,p3,p4
     )

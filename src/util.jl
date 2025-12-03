@@ -1,7 +1,5 @@
-using LinearAlgebra, MAT, DelimitedFiles, SparseArrays
-
 function getMatlabInstance(instanceName::String,matrixName::String)
-    myInst = string("..\\Instances\\",instanceName,".mat");
+    myInst = string("..//Instances//",instanceName,".mat");
     file = matopen(string(myInst));
     A = read(file, string(matrixName));
     close(file);
@@ -17,21 +15,11 @@ function getInitialInfoGinv(inst::GinvInst)
     Dinv = 1 ./ D;
     U1 = U[:,1:inst.r]; U2 = U[:,inst.r+1:inst.m];
     V1,V2 = V[:,1:inst.r],V[:,inst.r+1:inst.n];
-    V1Dinv = V1*SA.spdiagm(Dinv);
+    V1Dinv = V1*spdiagm(Dinv);
     V1DinvU1T = V1Dinv*U1';
     V2V2T = V2*V2';
     ginvInit = GinvInit(m,n,r,U1,U2,V1,V2,Dinv,V1Dinv,V1DinvU1T,V2V2T);
     return ginvInit
-    
-    
-    
-    
-    # Θ21 = (1/maximum(norm.(eachrow(V1))))*V1
-    # U1U1T,V2V2T = U1*U1',V2*V2'
-    # input1 = GinvADMM1(U1,V2,Θ1,V1DinvU1T,U1U1T,V2V2T,TP)
-    # input21 = GinvADMM21(U1,V2,Θ21,V1Dinv,V2V2T,TP)
-    # input20 = GinvADMM20(U1,V2,V1Dinv,V2V2T,0,0.0)
-    #return ginvInit
 end
 
 function getnorm0(A::Matrix{T},ϵ) where {T}
@@ -123,9 +111,7 @@ function getResultsSolver(inst::GinvInst,sol::SolutionOptimizer)
     norm_21  = getnorm21(H);
     norm_0 = getnorm0(H,ϵ);
     norm_1 = getnorm1(H);
-    # count_rows0 = getZeroRows(H,ϵ);
-    # NZR = inst.n - count_rows0;
-    NZR = getnorm20(H,ϵ)
+    norm_20 = getnorm20(H,ϵ)
     count_cols0 = getZeroCols(H,ϵ);
     NZC = inst.m - count_cols0;
     p1,p2,p3,p4 = norm(A*H*A - A),norm(H*A*H - H),norm(A*H - H'*A'),norm(H*A - A'*H');
@@ -139,7 +125,7 @@ function getResultsSolver(inst::GinvInst,sol::SolutionOptimizer)
         inst.r,
         sol.z,
         NZC,
-        NZR,
+        norm_20,
         norm_0,
         norm_1,
         norm_21,
@@ -214,10 +200,10 @@ function init_ginv_res_admm()
 end
 
 function writeCSV!(arr_res::Vector{T},ginv_res::Union{GinvResultADMM, GinvResultSolver},ginv_code::Symbol) where {T}
-    folder_1 = "..\\ResultsCSV";
+    folder_1 = "..//ResultsCSV";
     mkdir_ginv(folder_1)
     # File name
-    results_lieu   = string(folder_1,"\\",string("results_",ginv_code,".csv"));
+    results_lieu   = string(folder_1,"//",string("results_",ginv_code,".csv"));
     # Get infos
     new_ginv_vec = [];
     for field in fieldnames(typeof(ginv_res))
@@ -252,32 +238,3 @@ function append_to_plot2!(P1,D1,It,primal_res,dual_res,iter)
     push!(D1,dual_res)
     push!(It,iter)
 end
-
-# function get_input_21(ginvInit)
-#     nput21 = GinvADMM21(U1,V2,Θ21,V1Dinv,V2V2T,TP)
-
-
-# function writeAllCSV!(arr_res_all::Vector{T},ra::GinvResult,rb::GinvResult) where {T}
-#     folder_1 = "..\\ResultsCSV";
-#     mkdir_ginv(folder_1)
-#     # File name
-#     results_lieu   = string(folder_1,"\\",string("latex_results.csv"));
-#     # Get infos
-#     push!(arr_res_all,[ra.m,ra.n,ra.r,"A",ra.NZR,ra.norm_0,ra.norm_1,ra.norm_21,ra.iter,ra.time]);
-#     push!(arr_res_all,[rb.m,rb.n,rb.r,"B",rb.NZR,rb.norm_0,rb.norm_1,rb.norm_21,rb.iter,rb.time]);
-#     #push!(arr_res_all,[rc.m,rc.n,rc.r,"C",rc.NZR,rc.norm_0,rc.norm_1,rc.norm_21,rc.norm_fro,rc.time]);
-#     # write information
-#     writedlm(results_lieu,arr_res_all, ',')
-# end
-
-# function saveSolsJLD(inst::GinvInst,psols::ProbSols)
-#     file_location = "..\\JLDFiles\\";
-#     name_inst = string(
-#         file_location,
-#         inst.m,"_",
-#         inst.n,"_",
-#         inst.r,".jld"
-#     );
-#     JLD.save(name_inst, "psols",psols)
-# end
-
