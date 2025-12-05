@@ -200,7 +200,7 @@ function init_ginv_res_admm()
 end
 
 function writeCSV!(arr_res::Vector{T},ginv_res::Union{GinvResultADMM, GinvResultSolver},ginv_code::Symbol) where {T}
-    folder_1 = "..//ResultsCSV";
+    folder_1 = ".//ResultsCSV";
     mkdir_ginv(folder_1)
     # File name
     results_lieu   = string(folder_1,"//",string("results_",ginv_code,".csv"));

@@ -1,4 +1,4 @@
-function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-5,rho=3,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
+function admm1norm(ginvInit::GinvInit;eps_abs=1e-4,eps_rel=1e-4,eps_opt=1e-4,rho=3,max_iter=1e5,time_limit=7200,stop_limit=:Boyd)
     # initialize timer
     time_start = time_ns()
     # initialize parameters
@@ -94,10 +94,10 @@ function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rh
             dual_res = rho*norm(V2'*(E-E_old))
             eps_p = sqrt(n*r)*eps_abs + eps_rel*maximum([norm(E),norm(W),norm_V1Dinv])
             eps_d = sqrt((n-r)*r)*eps_abs + eps_rel*rho*norm(V2'*Λ)
-            E_old = E
+            
         elseif stop_limit == :OptGap
             dual_res = rho*norm(V2'*Λ)
-            eps_p = eps_opt,eps_d = eps_opt
+            eps_p = eps_opt; eps_d = eps_opt
         else
             error("stop limit not defined correctly")
         end
@@ -106,6 +106,7 @@ function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rh
             opt_res = abs(getnorm1(M)-rho*tr(Λ'*V1Dinv))
             break
         end
+        E_old = E
     end
     admmsol = SolutionADMM();
     admmsol.time = (time_ns() - time_start)/1e9;
@@ -118,7 +119,7 @@ function admm21norm(ginvInit::GinvInit;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rh
     return admmsol,M,Λ
 end
 
-function admm20norm(ginvInit::GinvInit,ω21::Float64,nzr21::Int64;eps_abs=1e-7,eps_rel=1e-7,eps_opt=1e-5,rho=1,max_iter=1e5)
+function admm20norm(ginvInit::GinvInit,ω21::Float64,nzr21::Int64;rho=1,max_iter=1e5)
     # initialize timer
     time_start = time_ns()
     # initialize parameters
