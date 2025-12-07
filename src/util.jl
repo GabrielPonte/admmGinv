@@ -101,75 +101,52 @@ function getZeroCols(A::Matrix{T},ϵ) where {T}
     return count_cols0
 end
 
-    
 
 function getResultsSolver(inst::GinvInst,sol::SolutionOptimizer)
     ϵ = 1e-5;
-    A = inst.A;
     H = sol.H;
     norm_fro = norm(H,2);
     norm_21  = getnorm21(H);
     norm_0 = getnorm0(H,ϵ);
     norm_1 = getnorm1(H);
     norm_20 = getnorm20(H,ϵ)
-    count_cols0 = getZeroCols(H,ϵ);
-    NZC = inst.m - count_cols0;
-    p1,p2,p3,p4 = norm(A*H*A - A),norm(H*A*H - H),norm(A*H - H'*A'),norm(H*A - A'*H');
-    p1 < ϵ ? bool_p1 = true : bool_p1 = false;
-    p2 < ϵ ? bool_p2 = true : bool_p2 = false;
-    p3 < ϵ ? bool_p3 = true : bool_p3 = false;
-    p4 < ϵ ? bool_p4 = true : bool_p4 = false;
     ginvResult = GinvResultSolver(
         inst.m,
         inst.n,
         inst.r,
         sol.z,
-        NZC,
-        norm_20,
-        norm_0,
         norm_1,
+        norm_0,
         norm_21,
-        0, #iter
-        sol.time,
+        norm_20,
         norm_fro,
-        bool_p1,bool_p2,bool_p3,bool_p4,
-        p1,p2,p3,p4
+        sol.time,
+        0, # number of iterations
+        
     )
     return ginvResult
 end
 
 function getResultsADMM(inst::GinvInst,sol::SolutionADMM)
     ϵ = 1e-5;
-    A = inst.A;
     H = sol.H;
     norm_fro = norm(H,2);
     norm_21  = getnorm21(H);
     norm_0 = getnorm0(H,ϵ);
     norm_1 = getnorm1(H);
     norm_20 = getnorm20(H,ϵ);
-    count_cols0 = getZeroCols(H,ϵ);
-    NZC = inst.m - count_cols0;
-    p1,p2,p3,p4 = norm(A*H*A - A),norm(H*A*H - H),norm(A*H - H'*A'),norm(H*A - A'*H');
-    p1 < ϵ ? bool_p1 = true : bool_p1 = false;
-    p2 < ϵ ? bool_p2 = true : bool_p2 = false;
-    p3 < ϵ ? bool_p3 = true : bool_p3 = false;
-    p4 < ϵ ? bool_p4 = true : bool_p4 = false;
     ginvResult = GinvResultADMM(
         inst.m,
         inst.n,
         inst.r,
         sol.z,
-        NZC,
         norm_1,
         norm_0,
         norm_21,
         norm_20,
+        norm_fro,
         sol.time,
         sol.iter,
-        norm_fro,
-        sol.res_pri,sol.res_dual,sol.res_d_ML,sol.res_opt,sol.eps_p,sol.eps_d,
-        bool_p1,bool_p2,bool_p3,bool_p4,
-        p1,p2,p3,p4
     )
     return ginvResult
 end

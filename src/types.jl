@@ -76,35 +76,23 @@ mutable struct GinvResultSolver
     n::Int64
     r::Int64
     objval::Float64
-    NZC::Int64
-    norm_20::Int64
-    norm_0::Int64
     norm_1::Float64
+    norm_0::Int64
     norm_21::Float64
-    iter::Int64
-    time::Float64
+    norm_20::Int64
     norm_fro::Float64
-    bool_p1::Bool
-    bool_p2::Bool
-    bool_p3::Bool
-    bool_p4::Bool
-    p1::Float64
-    p2::Float64
-    p3::Float64
-    p4::Float64
+    time::Float64
+    iter::Int64
+    
 
     GinvResultSolver() = new()
 
     GinvResultSolver(
         m,n,r,objval,
-        NZC,norm_20,norm_0,norm_1,norm_21,iter,time,norm_fro,
-        bool_p1,bool_p2,bool_p3,bool_p4,
-        p1,p2,p3,p4
+        norm_1,norm_0,norm_21,norm_20,norm_fro,time,iter,
     ) = new(
         m,n,r,objval,
-        NZC,norm_20,norm_0,norm_1,norm_21,iter,time,norm_fro,
-        bool_p1,bool_p2,bool_p3,bool_p4,
-        p1,p2,p3,p4
+        norm_1,norm_0,norm_21,norm_20,norm_fro,time,iter,
     )
 end
 
@@ -113,43 +101,22 @@ mutable struct GinvResultADMM
     n::Int64
     r::Int64
     objval::Float64
-    NZC::Int64
     norm_1::Float64
     norm_0::Int64
     norm_21::Float64
     norm_20::Int64
+    norm_fro::Float64
     time::Float64
     iter::Int64
-    norm_fro::Float64
-    res_pri::Float64
-    res_dual::Float64
-    res_d_ML::Float64
-    res_opt::Float64
-    eps_p::Float64
-    eps_d::Float64
-    bool_p1::Bool
-    bool_p2::Bool
-    bool_p3::Bool
-    bool_p4::Bool
-    p1::Float64
-    p2::Float64
-    p3::Float64
-    p4::Float64
-
+    
     GinvResultADMM() = new()
 
     GinvResultADMM(
         m,n,r,objval,
-        NZC,norm_1,norm_0,norm_21,norm_20,time,iter,norm_fro,
-        res_pri,res_dual,res_d_ML,res_opt,eps_p,eps_d,
-        bool_p1,bool_p2,bool_p3,bool_p4,
-        p1,p2,p3,p4
+        norm_1,norm_0,norm_21,norm_20,norm_fro,time,iter,
     ) = new(
         m,n,r,objval,
-        NZC,norm_1,norm_0,norm_21,norm_20,time,iter,norm_fro,
-        res_pri,res_dual,res_d_ML,res_opt,eps_p,eps_d,
-        bool_p1,bool_p2,bool_p3,bool_p4,
-        p1,p2,p3,p4
+        norm_1,norm_0,norm_21,norm_20,norm_fro,time,iter,
     )
 end
 
