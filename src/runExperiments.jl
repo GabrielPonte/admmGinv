@@ -44,7 +44,8 @@ for inst in instances_array
     if inst in ["L4","L5"]
         Aa = Float64.(Matrix(CSV.read(string(".//Instances//",inst,"a.csv"), DataFrame; header=false)))
         Ab = Float64.(Matrix(CSV.read(string(".//Instances//",inst,"b.csv"), DataFrame; header=false)))
-        A = vcat(Aa,Ab)
+        Ac = Float64.(Matrix(CSV.read(string(".//Instances//",inst,"c.csv"), DataFrame; header=false)))
+        A = vcat(Aa,Ab,Ac)
     else
         A = Float64.(Matrix(CSV.read(string(".//Instances//",inst,".csv"), DataFrame; header=false)))
     end
