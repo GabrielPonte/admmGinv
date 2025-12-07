@@ -28,15 +28,15 @@ println("\nStarting procedure...")
 instances_array = ["S1","S2","S3","S4","S5","L1","L2","L3","L4","L5"]; 
 
 
-run_ls = true; # Run local search based on determinant
+run_ls = false; # Run local search based on determinant
 run_admm1n = true; # Run ADMM 1-norm for P1, P2, P3
 run_admm21n = true;# Run ADMM 2,1-norm for P1, P2, P3
-run_20n = true; # Run ADMM with target 2,0-norm
-run_2120n = true; # Run ADMM-2,1 with target 2,0-norm
-run_grb = true; # Run Gurobi solver for min 1-norm
-run_msk = true; # Run Mosek solver for min 2,1-norm
+run_20n = false; # Run ADMM with target 2,0-norm
+run_2120n = false; # Run ADMM-2,1 with target 2,0-norm
+run_grb = false; # Run Gurobi solver for min 1-norm
+run_msk = false; # Run Mosek solver for min 2,1-norm
 
-fixed_tol = false # Choose between fixed tolerance for ADMM or dynamic tolerance proposed by Boyd
+fixed_tol = true # Choose between fixed tolerance for ADMM or dynamic tolerance proposed by Boyd
 fixed_tol ?  TP=:fixed_tol : TP = :rel_tol 
 
 for inst in instances_array
