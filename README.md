@@ -1,6 +1,7 @@
 # Code for the paper: Good and Fast Row-Sparse ah-Symmetric Reflexive Generalized Inverses
 
 @ Gabriel Ponte (gabponte@umich.edu), Marcia Fampa (fampa@cos.ufrj.br), Jon Lee (jonxlee@umich.edu), Luze Xu (xuluze@ust.hk).
+
 This project includes the data and code for: "Good and Fast Row-Sparse ah-Symmetric Reflexive Generalized Inverses," Open Journal of Mathematical Optimization.
 
 ### Data File ###
