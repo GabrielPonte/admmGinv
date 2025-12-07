@@ -21,7 +21,7 @@ Experiments are executed through ``runExperiments.jl``, where you can enable or 
 7. ``run_msk``: Mosek solver for minimizing the 2,1-norm of H
 8. ``fixed_tol``: If true, ADMM termination uses primal and dual residuals. If false, dynamic tolerances are used,  proposed by [Distributed Optimization and Statistical Learning via the Alternating Direction Method of Multipliers](https://stanford.edu/~boyd/papers/pdf/admm_distr_stats.pdf)
 
-To reproduce the experiments involving ADMM with target 2,0-norm, set fixed_tol = true.
+To reproduce the experiments involving ADMM with target 2,0-norm, set ``fixed_tol = true``.
 
 ### Results ###
 
